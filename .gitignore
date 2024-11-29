@@ -1,0 +1,9 @@
+__pycache__/
+coreutils*
+*.json
+*.log
+env/
+old/
+*old*
+test/
+Makefile
