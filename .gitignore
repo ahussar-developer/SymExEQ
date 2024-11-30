@@ -1,5 +1,4 @@
 __pycache__/
-coreutils*
 *.json
 *.log
 env/
