@@ -29,13 +29,13 @@ class NoOpProcedure(angr.SimProcedure):
         return 0
 
 class SymbolicExecutor:
-    def __init__(self, binary_path, radar_functions, debugger, simulation_timeout):
+    def __init__(self, binary_path, radar_functions, debugger, simulation_timeout, reattempt):
         self.project = angr.Project(binary_path, auto_load_libs=False)
         self.radar_functions = radar_functions
         self.debugger = debugger
         self.simulation_timeout = simulation_timeout #in seconds
         self.cfg = self.run_cfg()
-        self.reattempt = True
+        self.reattempt = reattempt
         self.reattempt_options=['fp']
         self.terminate_flag = threading.Event()
         self.active_threads = []
@@ -83,7 +83,7 @@ class SymbolicExecutor:
             stack_offset += 4
 
         # Add angr options
-        self.debugger.info("Setting state options: LAZY_SOLVES, ZERO_FILL_UNCONSTRAINED_*  BYPASS_UNSUPPORTED_SYSCALLand CALLLESS")
+        self.debugger.info("Setting state options: LAZY_SOLVES ZERO_FILL_UNCONSTRAINED_*  BYPASS_UNSUPPORTED_SYSCALL CALLLESS")
         state.options.add(angr.options.LAZY_SOLVES)
         state.options.add(angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY)
         state.options.add(angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS)
@@ -98,10 +98,10 @@ class SymbolicExecutor:
     
     def log_function_attrs(self, func):
         self.debugger.info(f"\tFunction Name: {func.name}")
-        self.debugger.debug(f"\tFunction Address: {hex(func.addr)}")
-        self.debugger.debug(f"\tFunction Size: {func.size}")
-        self.debugger.debug(f"\tIs Syscall: {func.is_syscall}")
-        self.debugger.debug(f"\tReturning: {func.returning}")
+        self.debugger.debug(f"Function Address: {hex(func.addr)}")
+        self.debugger.debug(f"Function Size: {func.size}")
+        self.debugger.debug(f"Is Syscall: {func.is_syscall}")
+        self.debugger.debug(f"Returning: {func.returning}")
         #print(f"\tTransition Graph: {func.transition_graph}")
         #print(f"\tReturn Sites: {func.ret_sites}")
 
@@ -184,12 +184,18 @@ class SymbolicExecutor:
         for return_addr in [ret.addr for ret in function.ret_sites]:
             self.debugger.info(f"Executing for return address: {hex(return_addr)}")
             state = self.setup_state(function, return_addr)
+
             error = False
             continue_to_nxt = False
             if not state:
                 self.debugger.info("Failed state init. Skipping")
                 return None
             
+            # DEBUGGING
+            self.debugger.attach_memory_hooks(state)
+            #self.debugger.attach_call_logger(state)
+            self.debugger.enable_instruction_logging(state)
+
             # Execute
             self.debugger.info("Initializaing simulation manager.")
             simgr = self.project.factory.simgr(state)
@@ -199,10 +205,11 @@ class SymbolicExecutor:
                 simgr = self.start_sim(simgr, return_addr, function)
             except Exception as e:
                 self.debugger.error("Simulation Failed")
+                self.debugger.error({e})
                 error = True
-                #continue
+                continue
             
-
+        
             if error and self.reattempt:
                 self.debugger.info(f"Options: {self.reattempt_options}")
                 state = self.setup_state(function, return_addr)
@@ -220,7 +227,6 @@ class SymbolicExecutor:
                         except Exception as e:
                             #Reattempt, then debug and move on
                             self.debugger.error(f"Simulation failed during reattempt option.")
-            
             if error:
                 self.debugger.debug("Reinitializing state for debug logs")
                 debug_state = self.setup_state(function, return_addr)
@@ -254,6 +260,11 @@ class SymbolicExecutor:
                         break
                 simgr.drop(stash='errored') 
             
+    def log_mapped_memory(self):
+        self.debugger.debug("Mapped memory regions:")
+        for obj in self.project.loader.all_objects:
+            for section in obj.sections:
+                self.debugger.debug(f"Object: {obj.provides}, Section: {section.name}, Range: {hex(section.min_addr)} - {hex(section.max_addr)}")
 
     def execute_all(self):
         main_object = self.project.loader.main_object
@@ -269,6 +280,7 @@ class SymbolicExecutor:
         binary_end = main_object.max_addr
         self.debugger.info(f"Min Memory Address: {hex(binary_start)}")
         self.debugger.info(f"Max Memory Address: {hex(binary_end)}")
+        self.log_mapped_memory()
         excluded_names =  [
             "frame_dummy", "register_tm_clones", "deregister_tm_clones",
             "__libc_csu_init", "__libc_csu_fini", "__do_global_dtors_aux"
@@ -285,7 +297,8 @@ class SymbolicExecutor:
         count = 0
         for function in user_functions:
             count += 1
-            self.debugger.info(f"\n\nWorking on function {count}/{len(user_functions)}")
+            self.debugger.info(f"\t\tWorking on function {count}/{len(user_functions)}")
+            self.debugger.error(f"\tErrors are for {function.name} [{count}/{len(user_functions)}]")
             start_time = time.time()
             self.execute_function(function)
             end_time = time.time()

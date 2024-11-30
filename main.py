@@ -19,9 +19,9 @@ def process_binary(binary_path, debugger):
     debugger.info(f"The function json file for the binary is {json_filename}")
 
     if not os.path.exists(json_filename):
-        print(f"JSON file '{json_filename}' not found. Extracting function details...")
+        debugger.info(f"JSON file '{json_filename}' not found. Extracting function details...")
         # Use FunctionExtractor to generate the JSON file
-        extractor = FunctionExtractor(binary_path, json_filename)
+        extractor = FunctionExtractor(binary_path, json_filename, debugger)
         try:
             extractor.run()
         except Exception as e:
@@ -41,7 +41,8 @@ def process_binary(binary_path, debugger):
 
 
     timeout = 35 # seconds
-    SE = SymbolicExecutor(binary_path=binary_path, radar_functions=functions, debugger=debugger, simulation_timeout=timeout)
+    reattempt = False # Reattemtp simulation with some changes if errored. Tries to account for floating point and other options
+    SE = SymbolicExecutor(binary_path=binary_path, radar_functions=functions, debugger=debugger, simulation_timeout=timeout, reattempt=reattempt)
     SE.execute_all()
     debugger.close()
 
@@ -61,7 +62,8 @@ def main():
         # Iterate over all files in the directory and process only binary files
         for filename in os.listdir(input_path):
             file_path = os.path.join(input_path, filename)
-            if os.path.isfile(file_path) and file_path.endswith('.bin'):  # Assuming binary files have a .bin extension
+            if os.path.isfile(file_path):
+                debugger.info(f"Processing binary: {file_path}")
                 process_binary(file_path, debugger)
     elif os.path.isfile(input_path):
         # If it's a file, process that binary

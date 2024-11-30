@@ -1,0 +1,6 @@
+TIME_T_32_BIT_OK=yes CC=clang ./configure CFLAGS="-m32 -Wno-incompatible-function-pointer-types" LDFLAGS="-m32" --host=i686-pc-linux-gnu
+make -j$(nproc)
+
+
+TIME_T_32_BIT_OK=yes CC=gcc ./configure CFLAGS="-m32" LDFLAGS="-m32" --host=i686-pc-linux-gnu
+make

@@ -5,6 +5,7 @@ coreutils*
 env/
 old/
 *old*
-test/
-Makefile
+test/coreutils-8.32/
+test/bin
 clear_logs.sh
+clear_jsons.sh
