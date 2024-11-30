@@ -3,9 +3,10 @@ import json
 import os
 import argparse
 from functions import Function,Argument
+from debugger import Debugger
 
 class FunctionExtractor:
-    def __init__(self, binary_path, json_filename):
+    def __init__(self, binary_path, json_filename, debugger):
         """
         Initialize the FunctionExtractor.
         :param binary_path: Path to the binary to analyze.
@@ -13,6 +14,7 @@ class FunctionExtractor:
         """
         self.binary_path = binary_path
         self.json_filename = json_filename
+        self.debugger = debugger
         self.r2 = None
         self.functions = []
 
@@ -41,7 +43,8 @@ class FunctionExtractor:
                 n_args=func["nargs"],
                 n_locals=func["nlocals"],
                 datarefs=drf,
-                callrefs=crf
+                callrefs=crf,
+                debugger=self.debugger
             )
             self.functions.append(fn)
     
@@ -49,7 +52,7 @@ class FunctionExtractor:
         """Save the extracted functions to a JSON file."""
         with open(self.json_filename, 'w') as f:
             json.dump([func.to_dict() for func in self.functions], f)
-        print(f"Function details saved to {self.json_filename}")
+        self.debugger.info(f"Function details saved to {self.json_filename}")
     
     def close_binary(self):
         """Close the radare2 pipe."""
@@ -93,13 +96,13 @@ if __name__ == "__main__":
 
     # Validate binary path
     if not os.path.exists(args.binary_path):
-        print(f"Error: The binary file '{args.binary_path}' does not exist.")
+        self.debugger.error(f"Error: The binary file '{args.binary_path}' does not exist.")
         exit(1)
 
     # Run the extractor
     try:
         extractor = FunctionExtractor(args.binary_path, json_filename)
         extractor.run()
-        print(f"Function extraction completed. Details saved to '{json_filename}'.")
+        self.debugger.info(f"Function extraction completed. Details saved to '{json_filename}'.")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        self.debugger.error(f"Function extraction failed with error: {e}")

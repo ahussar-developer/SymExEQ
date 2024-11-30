@@ -7,3 +7,4 @@ old/
 *old*
 test/
 Makefile
+clear_logs.sh

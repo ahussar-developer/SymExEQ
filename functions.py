@@ -1,5 +1,6 @@
 import json
 import re
+from debugger import Debugger
 
 class Argument:
     def __init__(self, type, name):
@@ -17,7 +18,7 @@ class Argument:
         return (f"Argument(type={self.type}, name={self.name})")
 
 class Function:
-    def __init__(self, name, offset, size, type, stackframe, calltype, signature, n_args, n_locals, datarefs, callrefs):
+    def __init__(self, name, offset, size, type, stackframe, calltype, signature, n_args, n_locals, datarefs, callrefs, debugger):
         self.name = name
         self.offset = offset
         self.size = size
@@ -29,6 +30,7 @@ class Function:
         self.n_locals = n_locals
         self.datarefs = datarefs
         self.callrefs = callrefs
+        self.debugger = debugger
         self.args = []
         self.extract_arguments()
     
@@ -50,7 +52,7 @@ class Function:
         }
 
     @staticmethod
-    def from_dict(data):
+    def from_dict(data, debugger=None):
         """Create a Function object from a dictionary."""
         return Function(
             data['name'],
@@ -63,7 +65,8 @@ class Function:
             data['n_args'],
             data['n_locals'],
             data['datarefs'],
-            data['callrefs']
+            data['callrefs'],
+            debugger
         )
         # Convert arguments back from the dictionaries
         func.args = [Argument(arg['type'], arg['name']) for arg in data['args']]
@@ -79,7 +82,7 @@ class Function:
             args = args_str.split(',')
 
             if not args:
-                print('No args')
+                self.debugger.info('No args')
                 return
             
             # Clean up each argument and print
@@ -100,7 +103,7 @@ class Function:
                 else:
                     if ("..." in arg):
                         continue
-                    print("Invalid argument format:", arg)
+                    self.debugger.error(f"Invalid argument format: {arg}. Could not extract.")
 
 
 
