@@ -6,16 +6,25 @@ import json
 import re
 import os
 import argparse
+import signal
 from functions import Function
 from radar_extractor import FunctionExtractor
 from executor import SymbolicExecutor
 from debugger import Debugger
+
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("Execution timed out")
 
 def process_binary(binary_path, debugger):
     project = angr.Project(binary_path, auto_load_libs=False)
 
     program_name = os.path.basename(binary_path) 
     json_filename = f"{program_name}_functions.json"
+
+    debugger.set_binary_log(f"{program_name}.log")
     debugger.info(f"The function json file for the binary is {json_filename}")
 
     if not os.path.exists(json_filename):
@@ -43,8 +52,19 @@ def process_binary(binary_path, debugger):
     timeout = 35 # seconds
     reattempt = False # Reattemtp simulation with some changes if errored. Tries to account for floating point and other options
     SE = SymbolicExecutor(binary_path=binary_path, radar_functions=functions, debugger=debugger, simulation_timeout=timeout, reattempt=reattempt)
-    SE.execute_all()
-    debugger.close()
+    try:
+        # Set the timeout for the entire execute_all process
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(15 * 60)  # 15 minutes in seconds
+        SE.execute_all()
+        signal.alarm(0)  # Disable the alarm after successful execution
+    except TimeoutException:
+        debugger.error("Binary processing timed out. Moving to the next binary.")
+    except Exception as e:
+        debugger.error(f"Something went wrong while processing the binary")
+        debugger.error(f"{e}")
+    finally:
+        debugger.close()
 
 
 def main():
@@ -58,23 +78,30 @@ def main():
     
     # Check if the path is a directory
     if os.path.isdir(input_path):
-        debugger.info(f"Directory detected: {input_path}")
+        debugger.main_info(f"Directory detected: {input_path}")
         # Iterate over all files in the directory and process only binary files
         for filename in os.listdir(input_path):
             file_path = os.path.join(input_path, filename)
             if os.path.isfile(file_path):
-                debugger.info(f"Processing binary: {file_path}")
-                process_binary(file_path, debugger)
+                debugger.main_info(f"Processing binary: {file_path}")
+                try:
+                    process_binary(file_path, debugger)
+                except Exception as e:
+                    # Catch any unexpected errors during the setup process
+                    debugger.main_error(f"Failed to process binary '{binary_path}' with error: {e}")
     elif os.path.isfile(input_path):
         # If it's a file, process that binary
-        debugger.info(f"File detected: {input_path}")
-        process_binary(input_path, debugger)
+        debugger.main_info(f"File detected: {input_path}")
+        try:
+            process_binary(file_path, debugger)
+        except Exception as e:
+            # Catch any unexpected errors during the setup process
+            debugger.main_error(f"Failed to process binary '{binary_path}' with error: {e}")
     else:
         debugger.error(f"{input_path} is neither a valid file nor a directory.")
         return
 
-    # Path to the binary
-    #binary_path = "test/bin/coreutils/cp"
+    debugger.main_close()
     
 if __name__ == "__main__":
     main()

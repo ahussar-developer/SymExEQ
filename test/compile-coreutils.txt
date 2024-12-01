@@ -1,6 +1,27 @@
-TIME_T_32_BIT_OK=yes CC=clang ./configure CFLAGS="-m32 -Wno-incompatible-function-pointer-types" LDFLAGS="-m32" --host=i686-pc-linux-gnu
+# Downlaod source as a tar ball from here:
+https://ftp.gnu.org/gnu/coreutils/
+I chose v8.32
+
+# Compile
+TIME_T_32_BIT_OK=yes CC=clang ./configure CFLAGS="-m32 -O0 -Wno-incompatible-function-pointer-types" LDFLAGS="-m32" --host=i686-pc-linux-gnu
 make -j$(nproc)
 
+TIME_T_32_BIT_OK=yes CC=gcc ./configure CFLAGS="-m32 -O0 -Wno-incompatible-function-pointer-types" LDFLAGS="-m32" --host=i686-pc-linux-gnu
+make -j$(nproc)
 
-TIME_T_32_BIT_OK=yes CC=gcc ./configure CFLAGS="-m32" LDFLAGS="-m32" --host=i686-pc-linux-gnu
-make
+#Check architecture and compiler
+file bianry
+Ex output:
+src/true: ELF 32-bit LSB pie executable, Intel 80386, version 1 (SYSV), 
+dynamically linked, interpreter /lib/ld-linux.so.2, BuildID[sha1]=80ac02c166fb82954814a3403c545e090a9f6fdd, 
+for GNU/Linux 3.2.0, not stripped
+
+strings binary | grep -i clang
+Ex. output:
+Ubuntu clang version 18.1.3 (1ubuntu1)
+
+
+# copy to another location from coreutils dir
+find src/ -type f -executable -exec cp --parents {} ../test/bin/coreutils-clang/ \;
+
+# find src/ -type f -executable -exec cp --parents {} ../dest/path/ \;

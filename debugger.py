@@ -3,29 +3,48 @@ import claripy
 import datetime
 import sys
 import logging
+import os
+
 class Debugger:
-    def __init__(self, enabled=True, level="INFO", toFile=False):
+    def __init__(self, enabled=True, level="INFO", toFile=False, curr_bin_log=None):
         """
         Initialize the Debugger.
         :param enabled: Whether debugging is enabled or disabled.
         :param level: The default log level (INFO, DEBUG, ERROR).
         """
+        self.dir = f"debug_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.enabled = enabled
         self.level = level.upper()
         self.level_order = {"DEBUG": 1, "INFO": 2, "ERROR": 3}
-        self.filename = f"debug_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        self.gen_log_filename = os.path.join(self.dir, "general.log")
+        self.curr_bin_log_filename = curr_bin_log
         self.toFile = toFile
+        self.curr_bin_log = None
+        self.gen_log = None
+        
         if self.toFile:
+            self.dir_setup()
             # Open the log file for writing
-            self.log_file = open(self.filename, "a")
+            self.gen_log = open(self.gen_log_filename, "a")
         else:
-            self.log_file = None
+            self.gen_log = None
+
+        print(self.gen_log)
     
     def is_enabled(self):
         if self.enabled:
             return True
         return False
     
+    def set_binary_log(self, bin_log):
+        self.curr_bin_log_filename = os.path.join(self.dir, bin_log)
+        self.curr_bin_log = open(self.curr_bin_log_filename, "a")
+    
+    def dir_setup(self):
+        if not os.path.exists(self.dir):
+            os.makedirs(self.dir)
+            self.info(f"Created debug directory: {self.dir}")
+
     def set_level(self, level):
         """
         Set the log level dynamically.
@@ -43,9 +62,26 @@ class Debugger:
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             #print(f"[{timestamp}] [{level.upper()}] {message}")
             log_message = f"[{level.upper()}] {message}"
-            if self.toFile and self.log_file:
+            if self.toFile and self.curr_bin_log:
                 # Write the log message to the file
-                self.log_file.write(log_message + "\n")
+                self.curr_bin_log.write(log_message + "\n")
+            else:
+                # Print the log message to stdout
+                print(log_message)
+    
+    def main_log(self, level, message):
+        """
+        Log a message if debugging is enabled and the level is appropriate.
+        :param level: The level of the log message.
+        :param message: The message to log.
+        """
+        if self.enabled and self.level_order[level.upper()] >= self.level_order[self.level]:
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            #print(f"[{timestamp}] [{level.upper()}] {message}")
+            log_message = f"[{level.upper()}] {message}"
+            if self.toFile and self.gen_log:
+                # Write the log message to the file
+                self.gen_log.write(log_message + "\n")
             else:
                 # Print the log message to stdout
                 print(log_message)
@@ -62,12 +98,30 @@ class Debugger:
         """Log an error message."""
         self.log("ERROR", message)
     
+    def main_debug(self, message):
+        """Log a debug message."""
+        self.main_log("DEBUG", message)
+
+    def main_info(self, message):
+        """Log an informational message."""
+        self.main_log("INFO", message)
+
+    def main_error(self, message):
+        """Log an error message."""
+        self.main_log("ERROR", message)
+    
     def close(self):
         """Close the log file if logging to a file."""
-        if self.log_file:
-            self.log_file.close()
-            self.log_file = None
+        if self.curr_bin_log:
+            self.curr_bin_log.close()
+            self.curr_bin_log = None
     
+    def main_close(self):
+        """Close the log file if logging to a file."""
+        if self.gen_log:
+            self.gen_log.close()
+            self.gen_log = None    
+
     def enable_instruction_logging(self, state):
         """Set up an instruction hook to log executed instructions."""
         if self.enabled:

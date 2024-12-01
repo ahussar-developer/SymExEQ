@@ -192,9 +192,9 @@ class SymbolicExecutor:
                 return None
             
             # DEBUGGING
-            self.debugger.attach_memory_hooks(state)
+            #self.debugger.attach_memory_hooks(state)
             #self.debugger.attach_call_logger(state)
-            self.debugger.enable_instruction_logging(state)
+            #self.debugger.enable_instruction_logging(state)
 
             # Execute
             self.debugger.info("Initializaing simulation manager.")

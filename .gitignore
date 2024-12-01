@@ -8,3 +8,4 @@ test/coreutils-8.32/
 test/bin
 clear_logs.sh
 clear_jsons.sh
+debug_*
