@@ -13,10 +13,20 @@ class FunctionExtractor:
         :param json_filename: Name of the output JSON file to save function details.
         """
         self.binary_path = binary_path
-        self.json_filename = json_filename
+        self.dir = "json/"
+        self.json_filename = os.path.join(self.dir, json_filename)
         self.debugger = debugger
         self.r2 = None
         self.functions = []
+        self.create_dir()
+
+    def create_dir(self):
+        if not os.path.exists(self.dir):
+            os.makedirs(self.dir)
+            self.debugger.info(f"Directory {self.dir} created.")
+        else:
+            self.debugger.info(f"Directory {self.dir} already exists.")
+
 
     def open_binary(self):
         """Open the binary in radare2."""

@@ -9,3 +9,4 @@ test/bin
 clear_logs.sh
 clear_jsons.sh
 debug_*
+json/
