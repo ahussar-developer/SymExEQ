@@ -11,7 +11,7 @@ from functions import Function
 from radar_extractor import FunctionExtractor
 from executor import SymbolicExecutor
 from debugger import Debugger
-from solver import ConstraintSolver
+from equivalence_analyzer import EquivalenceAnalyzer
 
 class TimeoutException(Exception):
     pass
@@ -31,18 +31,30 @@ def analyze_trackers(trackers, debugger):
     
     binaries1 = trackers[dir1]
     binaries2 = trackers[dir2]
+
     
     common_binaries = set(binaries1.keys()) & set(binaries2.keys())
     if not common_binaries:
         debugger.main_error("No common binaries found for analysis.")
         return
 
-    solver = ConstraintSolver(debugger)
+    # TODO: Normalization of returns and other possible contraints
+    # TODO: Add/print contraints for unmatched pairs
+
+    # TODO: Radar2 XREFS?
+    # TODO: Memory tacking and comparisons
 
     # Iterate over common binaries
     for binary_name in common_binaries:
         tracker1 = binaries1[binary_name]
         tracker2 = binaries2[binary_name]
+        
+        for key, value in binaries1.items():
+            path1 = value.binary_name
+        for key, value in binaries2.items():
+            path2 = value.binary_name
+        solver = EquivalenceAnalyzer(path1, path2, debugger)
+        
 
         debugger.main_info(f"Analyzing binary: {binary_name}")
         common_functions = set(tracker1.list_functions()) & set(tracker2.list_functions())
@@ -62,6 +74,7 @@ def analyze_trackers(trackers, debugger):
                 #print(tracker1)
                 #print(tracker1.get_return_addresses(function_name))
                 constraints1 = tracker1.get_constraints(function_name, return_addr=ret_addr1)
+                #debugger.main_info(f'C1: {constraints1}')
                 #debugger.main_info(f"Constraints for {function_name} at {hex(ret_addr1)} in {dir1}:")
                 #for c in constraints1:
                 #    debugger.main_info(str(c))
@@ -69,18 +82,19 @@ def analyze_trackers(trackers, debugger):
                 for ret_addr2 in ret_addrs2:
                     #print(tracker2)
                     constraints2 = tracker2.get_constraints(function_name, return_addr=ret_addr2)
+                    #debugger.main_info(f'C2: {constraints2}')
                     #print(tracker2.get_return_addresses(function_name))
                     #debugger.main_info(f"Constraints for {function_name} at {hex(ret_addr2)} in {dir2}:")
                     #for c in constraints2:
                     #    debugger.main_info(str(c))
-                    equivalent = solver.are_equivalent(constraints1, constraints2)
+                    equivalent = solver.are_equivalent(function_name, constraints1, constraints2, ret_addr1, ret_addr2)
                     if equivalent:
                         debugger.main_info(f"EQUIVALENT: {function_name} with return addresses {hex(ret_addr1)} and {hex(ret_addr2)} are equivalent.")
                     else:
                         debugger.main_error(f"NOT EQ: {function_name} with return addresses {hex(ret_addr1)} and {hex(ret_addr2)} are NOT equivalent.")
                         debugger.main_error(f'C1: {constraints1}')
                         debugger.main_error(f'C2: {constraints2}')
-
+    solver.print_equivalence_results()
     debugger.main_info("Tracker analysis complete!")
 
 def process_binary(binary_path, debugger, log_suffix=None):
@@ -214,7 +228,7 @@ def process_directory(directory, debugger):
 
 
 def main():
-    debugger = Debugger(enabled=True, level="DEBUG", toFile=True)
+    debugger = Debugger(enabled=True, level="RESULTS", toFile=True)
 
     parser = argparse.ArgumentParser(description="Process one or two directories or a single binary.")
     parser.add_argument("path1", help="Path to a binary, directory, or the first directory for comparison.")

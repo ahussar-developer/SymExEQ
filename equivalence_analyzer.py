@@ -1,14 +1,17 @@
 import claripy
 import re
-
-class ConstraintSolver:
-    def __init__(self, debugger):
-        """
-        Initialize the ConstraintSolver class.
-        """
+import json
+class EquivalenceAnalyzer:
+    def __init__(self,  binary1_name, binary2_name, debugger):
+        self.binary1_name = binary1_name
+        self.binary2_name = binary2_name
+        self.equivalence_results = {}  # {function_name: {gcc_ret_addr: {clang_ret_addr: is_equivalent}}}
+        self.not_equivalence_results = {}
         self.solver = claripy.Solver()
         self.debugger = debugger
     
+    def set_equivalence_res(self, function_name, ret_addr):
+        self.equivalence_results
     def extract_core_name(self,var_name):
         """
         Extract the core name of a symbolic variable.
@@ -81,7 +84,7 @@ class ConstraintSolver:
             normalized = constraints  # No normalization needed
         return normalized
 
-    def are_equivalent(self, constraints1, constraints2, var_mapping=None):
+    def are_equivalent(self, function_name, constraints1, constraints2, return_addr1, return_addr2, var_mapping=None):
         """
         Check if two sets of constraints are equivalent.
         :param constraints1: Constraints from the first function.
@@ -99,24 +102,52 @@ class ConstraintSolver:
             normalized2 = self.normalize_constraints(constraints2, var_mapping)
             #print(f"Nomralized C1: {normalized1}")
             #print(f"Nomralized C2: {normalized1}")
-        if normalized1 and normalized2:
-            # Add first set of constraints
-            self.solver.add(normalized1)
-
-            # Check if the negation of the second set is satisfiable
-            negated = claripy.Not(claripy.And(*normalized2))
-            self.solver.add(negated)
         else:
-            # Add first set of constraints
-            self.solver.add(constraints1)
+            normalized1 = constraints1
+            normalized2 = constraints2
+        # Add first set of constraints
+        self.solver.add(normalized1)
 
-            # Check if the negation of the second set is satisfiable
-            negated = claripy.Not(claripy.And(*constraints2))
-            self.solver.add(negated)
-        # Check satisfiability
-        if self.solver.satisfiable():
-            return False  # Constraints are not equivalent
-        return True  # Constraints are equivalent
+        # Check if the negation of the second set is satisfiable
+        negated = claripy.Not(claripy.And(*normalized2))
+        self.solver.add(negated)
+        equivalent = not self.solver.satisfiable()
+
+        #clear for next check
+        self.solver = claripy.Solver()
+
+        # Track equivalence results
+        unmatched1 = f"unmatched_{self.binary1_name}"
+        unmatched2 = f"unmatched_{self.binary2_name}"
+        if function_name not in self.equivalence_results:
+            self.equivalence_results[function_name] = {
+                "all_matched": True,  # Assume true initially
+                "matched_pairs": [],
+                unmatched1: [],
+                unmatched2: []
+            }
+
+        results = self.equivalence_results[function_name]
+        if equivalent:
+            results["matched_pairs"].append((return_addr1, return_addr2))
+        else:
+            results[unmatched1].append(return_addr1)
+            results[unmatched2].append(return_addr2)
+
+        # Update all_matched status
+        results["all_matched"] = (
+            len(results[unmatched1]) == 0 and len(results[unmatched2]) == 0
+        )
+
+        return equivalent
+        
+    def print_equivalence_results(self):
+        """
+        Print the equivalence results in a readable format.
+        """
+        self.debugger.main_res("")
+        results_str = json.dumps(self.equivalence_results, indent=4, default=str)
+        self.debugger.main_res(results_str)
 
     def compare_functions(self, func1_constraints, func2_constraints, var_mapping=None):
         """
