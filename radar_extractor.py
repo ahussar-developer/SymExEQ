@@ -101,18 +101,19 @@ if __name__ == "__main__":
     if not args.json_filename:
         program_name = os.path.basename(args.binary_path)  # Extract program name
         json_filename = f"{program_name}_functions.json"
+        print(f"{program_name}:{json_filename}")
     else:
         json_filename = args.json_filename
-
+    debugger = Debugger(enabled=True, level="RESULTS", toFile=False)
     # Validate binary path
     if not os.path.exists(args.binary_path):
-        self.debugger.error(f"Error: The binary file '{args.binary_path}' does not exist.")
+        print(f"Error: The binary file '{args.binary_path}' does not exist.")
         exit(1)
 
     # Run the extractor
     try:
-        extractor = FunctionExtractor(args.binary_path, json_filename)
+        extractor = FunctionExtractor(args.binary_path, json_filename, debugger)
         extractor.run()
-        self.debugger.info(f"Function extraction completed. Details saved to '{json_filename}'.")
+        debugger.info(f"Function extraction completed. Details saved to '{json_filename}'.")
     except Exception as e:
-        self.debugger.error(f"Function extraction failed with error: {e}")
+        debugger.error(f"Function extraction failed with error: {e}")
