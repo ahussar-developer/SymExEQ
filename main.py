@@ -105,9 +105,10 @@ def process_binary(binary_path, debugger, log_suffix=None):
     json_dir = "json/"
     json_path = os.path.join(json_dir, json_filename)
 
-    debugger.set_binary_log(f"{program_name}_{log_suffix}.log")
+    if debugger.toFile:
+        debugger.set_binary_log(f"{program_name}_{log_suffix}.log")
     debugger.info(f"The function json file for the binary is {json_filename}")
-
+    
     if not os.path.exists(json_path):
         debugger.info(f"JSON file '{json_path}' not found. Extracting function details...")
         # Use FunctionExtractor to generate the JSON file
@@ -133,6 +134,7 @@ def process_binary(binary_path, debugger, log_suffix=None):
     timeout = 35 # seconds
     reattempt = False # Reattemtp simulation with some changes if errored. Tries to account for floating point and other options
     SE = SymbolicExecutor(binary_path=binary_path, radar_functions=functions, debugger=debugger, simulation_timeout=timeout, reattempt=reattempt)
+
     try:
         # Set the timeout for the entire execute_all process
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -142,6 +144,7 @@ def process_binary(binary_path, debugger, log_suffix=None):
     except TimeoutException:
         debugger.error("Binary processing timed out. Moving to the next binary.")
     except Exception as e:
+        print(e)
         debugger.error(f"Something went wrong while processing the binary")
         debugger.error(f"{e}")
         return None
@@ -217,18 +220,22 @@ def process_two_directories(dir1, dir2, debugger, binary_name=None):
 
 def process_directory(directory, debugger):
     """Process all binaries in a single directory."""
+    trackers = []
+    suffix = os.path.basename(os.path.normpath(directory))
     for filename in os.listdir(directory):
         file_path = os.path.join(directory, filename)
         if os.path.isfile(file_path):
             debugger.main_info(f"Processing binary: {file_path}")
             try:
-                process_binary(file_path, debugger)
+                tracker = process_binary(file_path, debugger, suffix)
+                if tracker:
+                    trackers.append(tracker)
             except Exception as e:
                 debugger.main_error(f"Failed to process {file_path} with error: {e}")
 
 
 def main():
-    debugger = Debugger(enabled=True, level="RESULTS", toFile=True)
+    debugger = Debugger(enabled=True, level="DEBUG", toFile=True)
 
     parser = argparse.ArgumentParser(description="Process one or two directories or a single binary.")
     parser.add_argument("path1", help="Path to a binary, directory, or the first directory for comparison.")
@@ -258,9 +265,11 @@ def main():
         # If it's a file, process that binary
         debugger.main_info(f"File detected: {path1}")
         try:
-            process_binary(path1, debugger)
+            suffix = os.path.basename(os.path.dirname(path1))
+            process_binary(path1, debugger, suffix)
         except Exception as e:
             # Catch any unexpected errors during the setup process
+            print(f'fail: {e}')
             debugger.main_error(f"Failed to process binary '{path1}' with error: {e}")
     else:
         debugger.error(f"{path1} is neither a valid file nor a directory and {path2} wasnt provided.")

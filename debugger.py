@@ -58,6 +58,7 @@ class Debugger:
         :param level: The level of the log message.
         :param message: The message to log.
         """
+        
         if self.enabled and self.level_order[level.upper()] >= self.level_order[self.level]:
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             #print(f"[{timestamp}] [{level.upper()}] {message}")

@@ -6,6 +6,7 @@ import time
 import concurrent.futures
 
 from tracker import Tracker
+from memory_analyzer import MemoryAnalyzer
 
 class NoOpProcedure(angr.SimProcedure):
     def run(self, *args, **kwargs):
@@ -31,7 +32,7 @@ class NoOpProcedure(angr.SimProcedure):
 
 class SymbolicExecutor:
     def __init__(self, binary_path, radar_functions, debugger, simulation_timeout, reattempt):
-        self.project = angr.Project(binary_path, auto_load_libs=False)
+        self.project = angr.Project(binary_path, arch="x86",auto_load_libs=False)
         self.binary_path = binary_path
         self.radar_functions = radar_functions
         self.debugger = debugger
@@ -41,6 +42,7 @@ class SymbolicExecutor:
         self.reattempt_options=['fp']
         self.angr_functions = None
         self.tracker = Tracker(binary_name=self.binary_path, debugger=self.debugger)
+        self.memory_analyzer = None
 
     def setup_state(self, function, return_addr):
         """Set up the symbolic state for a given function."""
@@ -71,6 +73,13 @@ class SymbolicExecutor:
         mem_size = 4 # Bytes or 32-bits
         self.debugger.debug(f"Starting state at {hex(function.addr)}")
         state = self.project.factory.blank_state(addr=function.addr)
+
+        # Explicitly set up the stack pointer
+        STACK_BASE = 0xC0000000  # Stack base for a 32-bit ELF
+        STACK_SIZE = 0x8000      # Adjust stack size as needed
+        STACK_START = STACK_BASE - STACK_SIZE
+        state.regs.sp = STACK_BASE
+        self.debugger.debug(f"Initialized stack pointer to {hex(STACK_BASE)}")
         self.debugger.debug(f"Storing ret addr {hex(return_addr)} in stack")
         state.memory.store(state.regs.sp, return_addr, size=mem_size)  # Push the return address
 
@@ -91,6 +100,8 @@ class SymbolicExecutor:
         state.options.add(angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS)
         state.options.add(angr.options.BYPASS_UNSUPPORTED_SYSCALL)
         state.options.add(angr.options.CALLLESS)
+
+        self.memory_analyzer.attach_hooks(state)
         
         self.debugger.info("Finished state setup")
         return state
@@ -308,15 +319,19 @@ class SymbolicExecutor:
         self.angr_functions = user_functions
         count = 0
         for function in user_functions:
+            self.memory_analyzer = MemoryAnalyzer(self.project, self.debugger)
             count += 1
             self.debugger.info(f"\t\tWorking on function {count}/{len(user_functions)}")
-            self.debugger.error(f"\tErrors are for {function.name} [{count}/{len(user_functions)}]")
+            #self.debugger.error(f"\tErrors are for {function.name} [{count}/{len(user_functions)}]")
             start_time = time.time()
             self.execute_function(function)
             end_time = time.time()
 
             # Calculate and print the elapsed time
             elapsed_time = end_time - start_time
+            summary = self.memory_analyzer.summarize_memory_accesses()
+            self.debugger.info(f"Memory Access Summary:\n{summary}")
+
             self.debugger.info(f"Time taken: {elapsed_time:.2f} seconds")
             if (count == len(user_functions)):
                 self.debugger.info("Complete!")
