@@ -19,6 +19,7 @@ class MemoryAnalyzer:
         self.project = project
         self.debugger = debugger
         self.memory_accesses = []  # Store relevant memory accesses
+        self.memory_accesses_by_ret_addr = {}
         self.stack_region = self.get_stack_region()
     
     def get_stack_region(self):
@@ -30,8 +31,17 @@ class MemoryAnalyzer:
         stack_size = 0x8000      # Adjust stack size as needed
         stack_start = stack_base - stack_size
         return stack_start, stack_base
+    
+    def store_memory_accesses(self, return_addr):
+        if not self.memory_accesses:
+            self.debugger.info(f"No memory accesses to store for return address {hex(return_addr)}.")
+            return
+        
+        self.memory_accesses_by_ret_addr[return_addr] = self.memory_accesses.copy()
+        self.debugger.info(f"Stored {len(self.memory_accesses)} memory accesses for return address {hex(return_addr)}.")
+        self.memory_accesses.clear()
 
-    def is_relevant_memory_access(self, insn, addr):
+    def is_relevant_memory_access(self, insn):
         """
         Determine if a memory access is relevant.
         :param insn: Capstone instruction.
@@ -67,12 +77,32 @@ class MemoryAnalyzer:
             return False
         return True
 
-    def categorize_memory_address(self, addr):
+    def categorize_memory_address(self, state, insn):
         """
         Categorize a memory address (e.g., stack, heap, global).
         :param addr: Memory address.
         :return: Category as a string.
         """
+        print(f'\n\nINSN: {type(insn)} {insn}')
+        for op in insn.operands:
+            print(f'type: {op.type}')
+            print(f'op: {op}')
+
+        is_read = state.inspect.mem_read_address is not None
+        addr = state.inspect.mem_read_address if is_read else state.inspect.mem_write_address
+        symbolic = False
+        category = 'unknown'
+        if addr.symbolic:
+            # Skip symbolic addresses (optional)
+            self.debugger.debug("Skipping symbolic address")
+            symbolic = True
+            print(f'Symbolic:{addr}')
+        if not symbolic:
+            concrete_addr = state.solver.eval(addr, cast_to=int)  # Resolve concrete address
+            print(f'Concrete: {hex(concrete_addr)}')
+        # Determine the relevant register
+
+        '''
         if self.project.loader.main_object.min_addr <= addr <= self.project.loader.main_object.max_addr:
             return "global"
         elif addr in range(0x70000000, 0x80000000):  # Example heap range
@@ -80,6 +110,8 @@ class MemoryAnalyzer:
         elif addr in range(0x7fff0000, 0x80000000):  # Example stack range
             return "stack"
         return "unknown"
+        '''
+        return (symbolic, addr, category)
 
     def trace_relevant_memory_access(self, state):
         """
@@ -89,16 +121,11 @@ class MemoryAnalyzer:
         # Determine if it's a read or write access
         is_read = state.inspect.mem_read_address is not None
         access_type = "read" if is_read else "write"
-        addr = state.inspect.mem_read_address if is_read else state.inspect.mem_write_address
+        
 
-        if addr.symbolic:
-            # Skip symbolic addresses (optional)
-            self.debugger.debug("Skipping symbolic address")
-            return
-
-        concrete_addr = state.solver.eval(addr, cast_to=int)  # Resolve concrete address
+        
         instr_addr = state.addr  # Address of the instruction performing the access
-        category = self.categorize_memory_address(concrete_addr)  # Categorize the address
+        
 
         # Fetch the Capstone instruction
         block = state.project.factory.block(instr_addr)
@@ -111,12 +138,15 @@ class MemoryAnalyzer:
             if insn.address == instr_addr:
                 triggering_insn = insn
                 break
-        #
 
-        if self.is_relevant_memory_access(triggering_insn, concrete_addr):
+        if self.is_relevant_memory_access(triggering_insn):
+            
             # Log the access if it's relevant
+            symbolic, addr, category = self.categorize_memory_address(state, triggering_insn)
             self.debugger.debug(f'MEM_{access_type}: {triggering_insn}')
-            self.memory_accesses.append((instr_addr, concrete_addr, category, access_type))
+            # Fix this
+            #self.memory_accesses.append((instr_addr, concrete_addr, category, access_type))
+            
             #self.debugger.debug(f"MEM_{access_type}: Instruction {hex(instr_addr)}: {access_type} at {hex(concrete_addr)} ({category})")
 
 
@@ -134,12 +164,15 @@ class MemoryAnalyzer:
         """
         self.memory_accesses = []
 
-    def summarize_memory_accesses(self):
-        """
-        Summarize tracked memory accesses.
-        :return: Summary as a string.
-        """
+    def summarize_all_memory_accesses(self):
         summary = []
-        for instr_addr, addr, category, access_type in self.memory_accesses:
-            summary.append(f"Instruction {hex(instr_addr)}: {access_type} at {hex(addr)} ({category})")
+        for ret_addr, accesses in self.memory_accesses_by_ret_addr.items():
+            summary.append(f"Return Address {hex(ret_addr)}:")
+            for instr_addr, addr, category, access_type in accesses:
+                summary.append(f"  Instruction {hex(instr_addr)}: {access_type} at {hex(addr)} ({category})")
         return "\n".join(summary)
+
+    def reset_all_stored_accesses(self):
+        self.reset_memory_accesses()
+        self.memory_accesses_by_ret_addr.clear()
+        self.debugger.info("Cleared all stored memory accesses.")

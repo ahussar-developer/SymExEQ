@@ -198,6 +198,7 @@ class SymbolicExecutor:
         self.tracker.initialize_function(function.name)
 
         for return_addr in [ret.addr for ret in function.ret_sites]:
+            self.memory_analyzer.reset_memory_accesses()
             self.debugger.info(f"Executing for return address: {hex(return_addr)}")
             state = self.setup_state(function, return_addr)
 
@@ -261,7 +262,7 @@ class SymbolicExecutor:
             if continue_to_nxt:
                 self.debugger.info("Skipping to next function.")
                 continue
-            
+            self.memory_analyzer.store_memory_accesses(return_addr)
             for deadend_state in simgr.deadended:
                 self.debugger.info(f"Deadended state at address: {hex(deadend_state.addr)}")
                 for constraint in deadend_state.solver.constraints:
@@ -329,8 +330,11 @@ class SymbolicExecutor:
 
             # Calculate and print the elapsed time
             elapsed_time = end_time - start_time
-            summary = self.memory_analyzer.summarize_memory_accesses()
+            summary = self.memory_analyzer.summarize_all_memory_accesses()
+            self.tracker.integrate_memory_accesses(function.name, self.memory_analyzer.memory_accesses_by_ret_addr)
+            
             self.debugger.info(f"Memory Access Summary:\n{summary}")
+            self.memory_analyzer.reset_all_stored_accesses()
 
             self.debugger.info(f"Time taken: {elapsed_time:.2f} seconds")
             if (count == len(user_functions)):
