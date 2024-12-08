@@ -137,7 +137,22 @@ class Tracker:
         if function_name not in self.functions:
             return None
         return self.functions[function_name].get_memory_accesses(return_addr)
+    def summarize_memory_accesses(self):
+        """
+        Summarize all memory accesses for all functions and return addresses.
+        """
+        summary = []
+        for function_name, function_instance in self.functions.items():
+            summary.append(f"Function: {function_name}")
+            for return_addr, data in function_instance.return_data.items():
+                memory_accesses = data["memory_accesses"]
+                summary.append(f"  Return Address: {hex(return_addr)}")
+                for access in memory_accesses:
+                    summary.append(f"    {access}")
+            summary.append("")  # Blank line for better readability
 
+        return "\n".join(summary)
+        
     def list_functions(self):
         """
         List all functions in the tracker.

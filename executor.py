@@ -3,6 +3,7 @@ import claripy
 import sys
 import threading
 import time
+import traceback
 import concurrent.futures
 
 from tracker import Tracker
@@ -225,6 +226,7 @@ class SymbolicExecutor:
             except Exception as e:
                 self.debugger.error("Simulation Failed")
                 self.debugger.error({e})
+                traceback.print_exc()
                 error = True
                 continue
             
@@ -331,10 +333,16 @@ class SymbolicExecutor:
             # Calculate and print the elapsed time
             elapsed_time = end_time - start_time
             summary = self.memory_analyzer.summarize_all_memory_accesses()
+            #print(summary)
+            self.debugger.info(summary)
+
+            # clears memory
             self.tracker.integrate_memory_accesses(function.name, self.memory_analyzer.memory_accesses_by_ret_addr)
             
-            self.debugger.info(f"Memory Access Summary:\n{summary}")
+            
+            
             self.memory_analyzer.reset_all_stored_accesses()
+            
 
             self.debugger.info(f"Time taken: {elapsed_time:.2f} seconds")
             if (count == len(user_functions)):

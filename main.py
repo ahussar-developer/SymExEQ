@@ -102,6 +102,7 @@ def process_binary(binary_path, debugger, log_suffix=None):
 
     program_name = os.path.basename(binary_path) 
     json_filename = f"{program_name}_functions.json"
+    json_calls_filename = f"{program_name}_function_calls.json"
     json_dir = "json/"
     json_path = os.path.join(json_dir, json_filename)
 

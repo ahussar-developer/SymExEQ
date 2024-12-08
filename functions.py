@@ -2,6 +2,26 @@ import json
 import re
 from debugger import Debugger
 
+class Call:
+    def __init__(self, caller, addr, target, target_import):
+        self.caller = caller
+        self.call_insn_addr = addr
+        self.target = target
+        self.target_import = target_import
+
+    
+    def to_dict(self):
+        """Convert the Call object to a dictionary for JSON serialization."""
+        return {
+            'caller': self.caller,
+            'call_insn_addr': self.call_insn_addr,
+            'target': self.target,
+            'target_import': self.target_import  # Ensure this is included
+        }
+
+    def __repr__(self):
+        return (f"Call(caller={self.caller}, insn_addr={self.call_insn_addr}, target={self.target})")
+
 class Argument:
     def __init__(self, type, name):
         self.type = type
