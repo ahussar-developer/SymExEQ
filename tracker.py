@@ -6,6 +6,7 @@ class FunctionInstance:
         """
         self.function_name = function_name
         self.return_data = {}  # {return_addr: {"constraints": [], "memory_accesses": []}}
+        self.calls = []  # List of Call objects for this function
 
     def add_return_address(self, return_addr):
         """
@@ -59,6 +60,20 @@ class FunctionInstance:
             for addr, data in self.return_data.items()
         }
 
+    def add_call(self, call):
+        """
+        Add a Call object to the function.
+        :param call: Call object to add.
+        """
+        self.calls.append(call)
+
+    def get_calls(self):
+        """
+        Retrieve all Call objects for the function.
+        :return: A list of Call objects.
+        """
+        return self.calls
+    
     def list_return_addresses(self):
         """
         List all return addresses for this function.
@@ -67,7 +82,7 @@ class FunctionInstance:
         return list(self.return_data.keys())
 
     def __repr__(self):
-        return f"FunctionInstance({self.function_name}, {len(self.return_data)} return addresses)"
+        return f"FunctionInstance({self.function_name}, {len(self.return_data)} return addresses, {len(self.calls)} calls)"
 
 class Tracker:
     def __init__(self, binary_name, debugger):
@@ -115,6 +130,54 @@ class Tracker:
         self.initialize_function(function_name)
         for return_addr, memory_accesses in memory_accesses_by_ret_addr.items():
             self.functions[function_name].add_memory_accesses(return_addr, memory_accesses)
+
+    def is_relevant_call_target(self, call):
+        target = call.target
+        if target.startswith('__x86.'):
+            return False
+        return True
+
+    def add_call(self, call):
+        """
+        Add a Call object to the appropriate function.
+        :param call: Call object to add.
+        """
+        if not self.is_relevant_call_target(call):
+            return
+        function_name = call.caller
+        if function_name not in self.functions:
+            self.initialize_function(function_name)
+        self.functions[function_name].add_call(call)
+
+    def add_calls(self, calls):
+        """
+        Add multiple Call objects to the tracker.
+        :param calls: List of Call objects.
+        """
+        for call in calls:
+            self.add_call(call)
+
+    def get_calls_for_function(self, function_name):
+        """
+        Retrieve all Call objects for a specific function.
+        :param function_name: The name of the function.
+        :return: A list of Call objects.
+        """
+        if function_name not in self.functions:
+            return None
+        return self.functions[function_name].get_calls()
+
+    def summarize_calls(self):
+        """
+        Summarize all calls for all functions.
+        :return: A formatted string summarizing calls.
+        """
+        summary = []
+        for function_name, function_instance in self.functions.items():
+            summary.append(f"Function: {function_name}")
+            for call in function_instance.get_calls():
+                summary.append(f"  {call}")
+        return "\n".join(summary)
 
     def get_constraints(self, function_name, return_addr=None):
         """

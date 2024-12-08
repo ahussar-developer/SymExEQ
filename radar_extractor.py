@@ -106,6 +106,19 @@ class CallExtractor:
         self.r2 = r2pipe.open(self.binary_path, flags=["-e", "bin.cache=true"])
         self.r2.cmd("aaa")  # Perform analysis
 
+    def is_relevant_call(self, func_name):
+        excluded_names =  [
+            "frame_dummy", "register_tm_clones", "deregister_tm_clones",
+            "__libc_csu_init", "__libc_csu_fini", "__do_global_dtors_aux", "_start"
+        ]
+        if func_name.startswith('__'):
+            return False
+        if func_name.startswith('_'):
+            return False
+        if func_name in excluded_names:
+            return False
+        return True
+
     def extract_calls(self):
         """
         Extract call details using radare2.
@@ -119,6 +132,8 @@ class CallExtractor:
         for func in function_list:
             # Remove `sym.` prefix from the caller's name
             caller_name = func["name"].replace("sym.imp.", "").replace("sym.", "")
+            if not self.is_relevant_call(caller_name):
+                continue
             caller_offset = func["offset"]
 
             # Get the disassembly of the function

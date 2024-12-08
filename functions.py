@@ -18,9 +18,23 @@ class Call:
             'target': self.target,
             'target_import': self.target_import  # Ensure this is included
         }
+    
+    @classmethod
+    def from_dict(cls, data):
+        """
+        Create a Call object from a dictionary.
+        :param data: Dictionary containing Call data.
+        :return: A Call object.
+        """
+        return cls(
+            caller=data.get('caller', ''),
+            addr=data.get('call_insn_addr', ''),
+            target=data.get('target', ''),
+            target_import=data.get('target_import', False)  # Default to False if missing
+        )
 
     def __repr__(self):
-        return (f"Call(caller={self.caller}, insn_addr={self.call_insn_addr}, target={self.target})")
+        return (f"Call(caller={self.caller}, insn_addr={self.call_insn_addr}, target={self.target}, imported={self.target_import})")
 
 class Argument:
     def __init__(self, type, name):

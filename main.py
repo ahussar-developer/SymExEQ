@@ -7,8 +7,8 @@ import re
 import os
 import argparse
 import signal
-from functions import Function
-from radar_extractor import FunctionExtractor
+from functions import Function, Call
+from radar_extractor import FunctionExtractor, CallExtractor
 from executor import SymbolicExecutor
 from debugger import Debugger
 from equivalence_analyzer import EquivalenceAnalyzer
@@ -105,6 +105,7 @@ def process_binary(binary_path, debugger, log_suffix=None):
     json_calls_filename = f"{program_name}_function_calls.json"
     json_dir = "json/"
     json_path = os.path.join(json_dir, json_filename)
+    json_calls_path = os.path.join(json_dir, json_calls_filename)
 
     if debugger.toFile:
         debugger.set_binary_log(f"{program_name}_{log_suffix}.log")
@@ -130,7 +131,27 @@ def process_binary(binary_path, debugger, log_suffix=None):
     except Exception as e:
         debugger.error(f"Loading functions from JSON failed with error: {e}")
         return None
+    
+    if not os.path.exists(json_calls_path):
+        debugger.info(f"JSON file '{json_calls_path}' not found. Extracting function details...")
+        # Use FunctionExtractor to generate the JSON file
+        call_extractor = CallExtractor(binary_path, json_calls_filename, debugger)
+        try:
+            call_extractor.run()
+        except Exception as e:
+            debugger.error(f"Call extraction failed with error: {e}")
+            return None
+    else:
+            debugger.info(f"JSON file '{json_calls_path}' already exists. Loading functions...")
 
+    # Load the functions from the JSON file
+    try:
+        print(json_calls_path)
+        with open(json_calls_path, 'r') as f2:     
+            call_data = json.load(f2)
+            calls = [Call.from_dict(data) for data in call_data]
+    except Exception as e:
+        print(f"[ERROR] Loading calls from JSON failed with error: {e}")
 
     timeout = 35 # seconds
     reattempt = False # Reattemtp simulation with some changes if errored. Tries to account for floating point and other options
@@ -151,7 +172,9 @@ def process_binary(binary_path, debugger, log_suffix=None):
         return None
     finally:
         debugger.close()
-    
+    SE.tracker.add_calls(calls)
+    summary = SE.tracker.summarize_calls()
+    #self.debugger.debug(summary)
     return SE.tracker
     
 
@@ -237,6 +260,7 @@ def process_directory(directory, debugger):
 
 def main():
     debugger = Debugger(enabled=True, level="DEBUG", toFile=True)
+    #debugger = Debugger(enabled=True, level="DEBUG", toFile=False)
 
     parser = argparse.ArgumentParser(description="Process one or two directories or a single binary.")
     parser.add_argument("path1", help="Path to a binary, directory, or the first directory for comparison.")

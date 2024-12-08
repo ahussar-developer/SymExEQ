@@ -462,7 +462,7 @@ class MemoryAnalyzer:
         """
         state.inspect.b("mem_read", when=angr.BP_BEFORE, action=self.trace_relevant_memory_access)
         state.inspect.b("mem_write", when=angr.BP_BEFORE, action=self.trace_relevant_memory_access)
-        state.inspect.b('call', when=angr.BP_BEFORE, action=lambda state: self.trace_call(state))
+        #state.inspect.b('call', when=angr.BP_BEFORE, action=lambda state: self.trace_call(state))
         #state.inspect.b("call", when=angr.BP_BEFORE, action=self.trace_call)
 
     def reset_memory_accesses(self):
