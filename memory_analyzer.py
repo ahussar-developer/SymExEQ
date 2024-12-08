@@ -56,6 +56,7 @@ class MemoryAccess:
         return (
             f"MemoryAccess("
             f"access_type={self._access_type!r}, "
+            f"insn={insn_str!r}, "
             f"is_symbolic={self._is_symbolic!r}, "
             f"symbolic_addr={self._symbolic_addr!r}, "
             f"is_concrete={self._is_concrete!r}, "

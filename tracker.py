@@ -156,16 +156,17 @@ class Tracker:
         """
         for call in calls:
             self.add_call(call)
-
-    def get_calls_for_function(self, function_name):
+    
+    def get_calls(self, function_name):
         """
-        Retrieve all Call objects for a specific function.
+        Retrieve all calls for a specific function.
         :param function_name: The name of the function.
-        :return: A list of Call objects.
+        :return: List of Call objects associated with the function.
         """
         if function_name not in self.functions:
-            return None
+            return []
         return self.functions[function_name].get_calls()
+
 
     def summarize_calls(self):
         """

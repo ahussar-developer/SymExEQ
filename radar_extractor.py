@@ -203,9 +203,10 @@ if __name__ == "__main__":
         program_name = os.path.basename(args.binary_path)  # Extract program name
         json_filename = f"{program_name}_functions.json"
         json_calls_filename = f"{program_name}_function_calls.json"
-        print(f"{program_name}:{json_filename}")
+        #print(f"{program_name}:{json_filename}")
     else:
         json_filename = args.json_filename
+        program_name = os.path.basename(args.binary_path) 
         json_calls_filename = f"{program_name}_function_calls.json"
     debugger = Debugger(enabled=True, level="DEBUG", toFile=False)
     # Validate binary path

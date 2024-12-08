@@ -83,38 +83,65 @@ class EquivalenceAnalyzer:
         else:
             normalized = constraints  # No normalization needed
         return normalized
+    
+    def compare_calls(self, calls1, calls2):
+        """
+        Compare two sets of calls for equivalence.
+        :param calls1: List of Call objects for the first function.
+        :param calls2: List of Call objects for the second function.
+        :return: True if the calls are equivalent, False otherwise.
+        """
+        if len(calls1) != len(calls2):
+            return False
 
+        for call1, call2 in zip(calls1, calls2):
+            if call1.target != call2.target:
+                return False
+            if call1.target_import != call2.target_import:
+                return False
+
+        return True
+    
     def are_equivalent(self, function_name, constraints1, constraints2, return_addr1, return_addr2, var_mapping=None):
         """
-        Check if two sets of constraints are equivalent.
+        Check if two sets of constraints and their call patterns are equivalent.
+        :param function_name: Name of the function being checked.
         :param constraints1: Constraints from the first function.
         :param constraints2: Constraints from the second function.
+        :param return_addr1: Return address of the first function.
+        :param return_addr2: Return address of the second function.
         :param var_mapping: Optional mapping of variable names between the two sets of constraints.
         :return: True if equivalent, False otherwise.
         """
         normalized1 = None
         normalized2 = None
         if not self.has_matching_variable_names(constraints1, constraints2):
-            #self.debugger.main_info("Normalizing constriants")
+            # Normalize constraints with variable mapping
             var_mapping = self.build_variable_mapping(constraints1, constraints2)
-            # Normalize constraints
             normalized1 = self.normalize_constraints(constraints1, var_mapping)
             normalized2 = self.normalize_constraints(constraints2, var_mapping)
-            #print(f"Nomralized C1: {normalized1}")
-            #print(f"Nomralized C2: {normalized1}")
         else:
             normalized1 = constraints1
             normalized2 = constraints2
-        # Add first set of constraints
-        self.solver.add(normalized1)
 
-        # Check if the negation of the second set is satisfiable
+        # Check equivalence of memory constraints
+        self.solver.add(normalized1)
         negated = claripy.Not(claripy.And(*normalized2))
         self.solver.add(negated)
-        equivalent = not self.solver.satisfiable()
+        constraints_equivalent = not self.solver.satisfiable()
 
-        #clear for next check
+        # Clear solver for next check
         self.solver = claripy.Solver()
+
+        # Fetch call data from the tracker
+        calls1 = self.tracker.get_calls(function_name, return_addr1)
+        calls2 = self.tracker.get_calls(function_name, return_addr2)
+
+        # Compare call equivalence
+        calls_equivalent = self.compare_calls(calls1, calls2)
+
+        # Determine overall equivalence
+        equivalent = constraints_equivalent and calls_equivalent
 
         # Track equivalence results
         unmatched1 = f"unmatched_{self.binary1_name}"
@@ -140,7 +167,7 @@ class EquivalenceAnalyzer:
         )
 
         return equivalent
-        
+
     def print_equivalence_results(self):
         """
         Print the equivalence results in a readable format.

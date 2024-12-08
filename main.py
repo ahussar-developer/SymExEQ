@@ -7,6 +7,7 @@ import re
 import os
 import argparse
 import signal
+import shutil
 from functions import Function, Call
 from radar_extractor import FunctionExtractor, CallExtractor
 from executor import SymbolicExecutor
@@ -40,11 +41,9 @@ def analyze_trackers(trackers, debugger):
 
     # TODO: Normalization of returns and other possible contraints
     # TODO: Add/print contraints for unmatched pairs
+ 
 
-    # TODO: Radar2 XREFS?
-    # TODO: Memory tacking and comparisons
-
-    # Iterate over common binaries
+    # Iterate over common binariesis_symbolic=True
     for binary_name in common_binaries:
         tracker1 = binaries1[binary_name]
         tracker2 = binaries2[binary_name]
@@ -97,13 +96,31 @@ def analyze_trackers(trackers, debugger):
     solver.print_equivalence_results()
     debugger.main_info("Tracker analysis complete!")
 
-def process_binary(binary_path, debugger, log_suffix=None):
-    project = angr.Project(binary_path, auto_load_libs=False)
+def clear_directory(json_dir, debugger):
+    """Clear all files in the json directory."""
+    if os.path.exists(json_dir):
+        for filename in os.listdir(json_dir):
+            file_path = os.path.join(json_dir, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                    debugger.info(f"Deleted file: {file_path}")
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+                    debugger.info(f"Deleted directory: {file_path}")
+            except Exception as e:
+                debugger.error(f"Failed to delete {file_path}: {e}")
 
+def process_binary(binary_path, debugger, clear_jsons, log_suffix=None):
+    json_dir = "json/"
+    if clear_jsons:
+        clear_directory(json_dir=json_dir, debugger=debugger)
+    project = angr.Project(binary_path, auto_load_libs=False)
+    
     program_name = os.path.basename(binary_path) 
     json_filename = f"{program_name}_functions.json"
     json_calls_filename = f"{program_name}_function_calls.json"
-    json_dir = "json/"
+    
     json_path = os.path.join(json_dir, json_filename)
     json_calls_path = os.path.join(json_dir, json_calls_filename)
 
@@ -146,12 +163,11 @@ def process_binary(binary_path, debugger, log_suffix=None):
 
     # Load the functions from the JSON file
     try:
-        print(json_calls_path)
         with open(json_calls_path, 'r') as f2:     
             call_data = json.load(f2)
             calls = [Call.from_dict(data) for data in call_data]
     except Exception as e:
-        print(f"[ERROR] Loading calls from JSON failed with error: {e}")
+        debugger.error(f"Loading calls from JSON failed with error: {e}")
 
     timeout = 35 # seconds
     reattempt = False # Reattemtp simulation with some changes if errored. Tries to account for floating point and other options
@@ -200,12 +216,12 @@ def process_two_directories(dir1, dir2, debugger, binary_name=None):
             debugger.main_info(f"Processing specific binary: {binary_name}")
             try:
                 debugger.main_info(f"Running SEE on {suffix1} version of {binary_name}")
-                tracker1 = process_binary(binaries1[binary_name], debugger, log_suffix=suffix1)
+                tracker1 = process_binary(binaries1[binary_name], debugger, True, log_suffix=suffix1)
                 if tracker1:
                     trackers[dir1][binary_name] = tracker1
                 
                 debugger.main_info(f"Running SEE on {suffix2} version of {binary_name}")
-                tracker2 = process_binary(binaries2[binary_name], debugger, log_suffix=suffix2)
+                tracker2 = process_binary(binaries2[binary_name], debugger, True, log_suffix=suffix2)
                 if tracker2:
                     trackers[dir2][binary_name] = tracker2
             except Exception as e:
@@ -223,12 +239,12 @@ def process_two_directories(dir1, dir2, debugger, binary_name=None):
             debugger.main_info(f"Processing matching binary: {program_name}")
             try:
                 debugger.main_info(f"Running SEE on {suffix1} version of {program_name}")
-                tracker1 = process_binary(binaries1[program_name], debugger, log_suffix=suffix1)
+                tracker1 = process_binary(binaries1[program_name], debugger, True, log_suffix=suffix1)
                 if tracker1:
                     trackers[dir1][binary_name] = tracker1
                 
                 debugger.main_info(f"Running SEE on {suffix2} version of {program_name}")
-                tracker2 = process_binary(binaries2[program_name], debugger, log_suffix=suffix2)
+                tracker2 = process_binary(binaries2[program_name], debugger, True, log_suffix=suffix2)
                 if tracker2:
                     trackers[dir2][binary_name] = tracker2
             
@@ -251,7 +267,7 @@ def process_directory(directory, debugger):
         if os.path.isfile(file_path):
             debugger.main_info(f"Processing binary: {file_path}")
             try:
-                tracker = process_binary(file_path, debugger, suffix)
+                tracker = process_binary(file_path, debugger, False, suffix)
                 if tracker:
                     trackers.append(tracker)
             except Exception as e:
@@ -291,7 +307,7 @@ def main():
         debugger.main_info(f"File detected: {path1}")
         try:
             suffix = os.path.basename(os.path.dirname(path1))
-            process_binary(path1, debugger, suffix)
+            process_binary(path1, debugger, False, suffix)
         except Exception as e:
             # Catch any unexpected errors during the setup process
             print(f'fail: {e}')
