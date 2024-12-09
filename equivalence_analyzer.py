@@ -14,25 +14,32 @@ class EquivalenceAnalyzer:
         self.equivalence_results
         
     # TODO: Fix constriant normaliztion
-    def extract_core_name(self,var_name):
+    def extract_core_name(self, var_name):
         """
         Extract the core name of a symbolic variable.
         Handles naming patterns introduced by angr and claripy.
+        
+        Examples:
+        fake_ret_value_1167_32
+        arg_ch_714_32
+        *arg_ch_537_32
+        size_775_32
+        *stream_1599_32
+        ptr_787_32
+        *ptr_1458_32
+        *s_1104_32
+        **s_515_32
         """
-        # SOme have many return vars, should we count them?
-        # fake_ret_value_1167_32
-        # arg_ch_714_32
-        # *arg_ch_537_32
-        # size_775_32
-        # *stream_1599_32
-        # ptr_787_32
-        # *ptr_1458_32
-        # *s_1104_32
-        # **s_515_32
         
-        
-        match = re.match(r"arg_\w+_(\d+)_\d+", var_name)
-        return match.group(1) if match else var_name
+        # Match patterns for variable types
+        match = re.match(
+            r"(?:\*+)?(?:fake_ret_value|arg|size|ptr|stream|s)_\w+_(\d+)_\d+", var_name
+        )
+        if match:
+            return match.group(1)  # Return the core number
+
+        # If no match, return the variable name as-is
+        return var_name
     
     def build_variable_mapping(self, constraints1, constraints2):
         """
@@ -124,6 +131,20 @@ class EquivalenceAnalyzer:
                 return False
         self.debugger.main_equiv(f"Calls equivalent")
         return True
+    
+    def count_fake_ret_values(self, constraints):
+        """
+        Count the occurrences of 'fake_ret_value' in constraints.
+        :param constraints: List of claripy constraints.
+        :return: Count of 'fake_ret_value' occurrences.
+        """
+        count = 0
+        for constraint in constraints:
+            for var in constraint.variables:
+                if "fake_ret_value" in var:
+                    count += 1
+        return count
+
     def compare_constraints(self,c1,c2):
         self.solver.add(c1)
         negated = claripy.Not(claripy.And(*c2))
@@ -131,7 +152,7 @@ class EquivalenceAnalyzer:
         constraints_equivalent = not self.solver.satisfiable()
         return constraints_equivalent
     
-    def calculate_similarity(self, constraints1, constraints2, calls1, calls2):
+    def calculate_similarity(self, constraints1, constraints2, calls1, calls2, ret_count1, ret_count2):
         # Constraint similarity
         shared_constraints = self.compare_constraints(constraints1, constraints2)
         constraint_similarity = 1.0 if shared_constraints else 0.0
@@ -142,15 +163,20 @@ class EquivalenceAnalyzer:
         shared_calls = call_targets1.intersection(call_targets2)
         call_similarity = len(shared_calls) / max(len(call_targets1), len(call_targets2), 1)
 
-        # Return address similarity
-        #shared_ret_addrs = set(ret_addrs1).intersection(set(ret_addrs2))
-        #ret_addr_similarity = len(shared_ret_addrs) / max(len(ret_addrs1), len(ret_addrs2), 1)
+        
+        # Return value count similarity
+        if ret_count1 == ret_count2:
+            ret_val_similarity = 1.0
+        else:
+            max_ret_val_count = max(ret_count1, ret_count2)
+            ret_val_similarity = 1 - abs(ret_count1 - ret_count2) / max_ret_val_count
 
-        # Weighted average (adjust weights as needed)
-        weights = {"constraints": 0.5, "calls": 0.5}
+        # Weighted average
+        weights = {"constraints": 0.4, "calls": 0.5, "ret_vals": 0.1}
         similarity_score = (
             weights["constraints"] * constraint_similarity +
-            weights["calls"] * call_similarity
+            weights["calls"] * call_similarity +
+            weights["ret_vals"] * ret_val_similarity
         )
 
         return similarity_score
@@ -166,6 +192,9 @@ class EquivalenceAnalyzer:
         :param var_mapping: Optional mapping of variable names between the two sets of constraints.
         :return: True if equivalent, False otherwise.
         """
+        
+        rets_1 = self.count_fake_ret_values(constraints1)
+        rets_2 = self.count_fake_ret_values(constraints1)
         normalized1 = None
         normalized2 = None
         if not self.has_matching_variable_names(constraints1, constraints2):
@@ -179,8 +208,9 @@ class EquivalenceAnalyzer:
         self.debugger.main_equiv(f"C1: {normalized1}")
         self.debugger.main_equiv(f"C2: {normalized2}")
         
+        # TODO: Ended here testing the new ret comparisons
         threshold = 0.75
-        similarity_score = self.calculate_similarity(normalized1, normalized2, calls1, calls2)
+        similarity_score = self.calculate_similarity(normalized1, normalized2, calls1, calls2, rets_1, rets_2)
 
         # Log similarity score
         self.debugger.main_equiv(f"Function {function_name} - Similarity Score: {similarity_score:.2f}")
