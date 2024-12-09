@@ -117,6 +117,8 @@ class CallExtractor:
             return False
         if func_name in excluded_names:
             return False
+        if func_name.startswith('0x'):
+            return False
         return True
 
     def extract_calls(self):
@@ -132,8 +134,6 @@ class CallExtractor:
         for func in function_list:
             # Remove `sym.` prefix from the caller's name
             caller_name = func["name"].replace("sym.imp.", "").replace("sym.", "")
-            if not self.is_relevant_call(caller_name):
-                continue
             caller_offset = func["offset"]
 
             # Get the disassembly of the function
@@ -153,6 +153,9 @@ class CallExtractor:
                     else:
                         target_import = False
                     target = target.replace("sym.imp.", "").replace("sym.", "")
+                    if not self.is_relevant_call(target):
+                        continue
+                    
 
                     call_addr = op["offset"]
                     call = Call(caller=caller_name, addr=hex(call_addr), target=target, target_import=target_import)

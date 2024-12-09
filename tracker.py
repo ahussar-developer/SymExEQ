@@ -232,6 +232,7 @@ class Tracker:
         """
         if function_name in self.functions:
             return self.functions[function_name].list_return_addresses()
+        self.debugger.error(f"Function {function_name} not found in tracker.")
         return []
 
     def __repr__(self):

@@ -64,8 +64,12 @@ def analyze_trackers(trackers, debugger):
         # Compare constraints for each function
         for function_name in common_functions:
             debugger.main_info(f"Analyzing function: {function_name}")
-            ret_addrs1 = tracker1.get_return_addresses(function_name)
-            ret_addrs2 = tracker2.get_return_addresses(function_name)
+            ret_addrs1 = tracker1.list_return_addresses(function_name)
+            ret_addrs2 = tracker2.list_return_addresses(function_name)
+
+            calls1 = tracker1.get_calls(function_name)
+            calls2 = tracker2.get_calls(function_name)
+
 
             # Compare constraints for matching return addresses
             
@@ -86,13 +90,14 @@ def analyze_trackers(trackers, debugger):
                     #debugger.main_info(f"Constraints for {function_name} at {hex(ret_addr2)} in {dir2}:")
                     #for c in constraints2:
                     #    debugger.main_info(str(c))
-                    equivalent = solver.are_equivalent(function_name, constraints1, constraints2, ret_addr1, ret_addr2)
+                    equivalent = solver.are_equivalent(function_name, constraints1, constraints2, ret_addr1, ret_addr2, calls1, calls2)
                     if equivalent:
                         debugger.main_info(f"EQUIVALENT: {function_name} with return addresses {hex(ret_addr1)} and {hex(ret_addr2)} are equivalent.")
                     else:
-                        debugger.main_error(f"NOT EQ: {function_name} with return addresses {hex(ret_addr1)} and {hex(ret_addr2)} are NOT equivalent.")
-                        debugger.main_error(f'C1: {constraints1}')
-                        debugger.main_error(f'C2: {constraints2}')
+                        continue
+                        #debugger.main_error(f"NOT EQ: {function_name} with return addresses {hex(ret_addr1)} and {hex(ret_addr2)} are NOT equivalent.")
+                        #debugger.main_error(f'C1: {constraints1}')
+                        #debugger.main_error(f'C2: {constraints2}')
     solver.print_equivalence_results()
     debugger.main_info("Tracker analysis complete!")
 
@@ -104,12 +109,12 @@ def clear_directory(json_dir, debugger):
             try:
                 if os.path.isfile(file_path) or os.path.islink(file_path):
                     os.unlink(file_path)
-                    debugger.info(f"Deleted file: {file_path}")
+                    debugger.main_info(f"Deleted file: {file_path}")
                 elif os.path.isdir(file_path):
                     shutil.rmtree(file_path)
-                    debugger.info(f"Deleted directory: {file_path}")
+                    debugger.main_info(f"Deleted directory: {file_path}")
             except Exception as e:
-                debugger.error(f"Failed to delete {file_path}: {e}")
+                debugger.main_error(f"Failed to delete {file_path}: {e}")
 
 def process_binary(binary_path, debugger, clear_jsons, log_suffix=None):
     json_dir = "json/"
@@ -275,8 +280,10 @@ def process_directory(directory, debugger):
 
 
 def main():
-    debugger = Debugger(enabled=True, level="DEBUG", toFile=True)
+    debugger = Debugger(enabled=True, level="RESULTS", toFile=True)
     #debugger = Debugger(enabled=True, level="DEBUG", toFile=False)
+    
+    clear_directory('json/', debugger)
 
     parser = argparse.ArgumentParser(description="Process one or two directories or a single binary.")
     parser.add_argument("path1", help="Path to a binary, directory, or the first directory for comparison.")

@@ -12,11 +12,25 @@ class EquivalenceAnalyzer:
     
     def set_equivalence_res(self, function_name, ret_addr):
         self.equivalence_results
+        
+    # TODO: Fix constriant normaliztion
     def extract_core_name(self,var_name):
         """
         Extract the core name of a symbolic variable.
         Handles naming patterns introduced by angr and claripy.
         """
+        # SOme have many return vars, should we count them?
+        # fake_ret_value_1167_32
+        # arg_ch_714_32
+        # *arg_ch_537_32
+        # size_775_32
+        # *stream_1599_32
+        # ptr_787_32
+        # *ptr_1458_32
+        # *s_1104_32
+        # **s_515_32
+        
+        
         match = re.match(r"arg_\w+_(\d+)_\d+", var_name)
         return match.group(1) if match else var_name
     
@@ -33,6 +47,9 @@ class EquivalenceAnalyzer:
         # Extract core names
         core_map1 = {var: self.extract_core_name(var) for var in variables1}
         core_map2 = {var: self.extract_core_name(var) for var in variables2}
+        
+        print(f'M1: {core_map1}')
+        print(f'M2: {core_map2}')
 
         # Build mapping
         mapping = {}
@@ -65,6 +82,7 @@ class EquivalenceAnalyzer:
         """
         vars1 = self.extract_variable_names(constraints1)
         vars2 = self.extract_variable_names(constraints2)
+        
         return vars1 == vars2
 
     def normalize_constraints(self, constraints, var_mapping=None):
@@ -91,18 +109,53 @@ class EquivalenceAnalyzer:
         :param calls2: List of Call objects for the second function.
         :return: True if the calls are equivalent, False otherwise.
         """
+        self.debugger.main_equiv(f"Comparing calls: {[call.target for call in calls1]} vs. {[call.target for call in calls2]}")
+
         if len(calls1) != len(calls2):
+            self.debugger.main_equiv(f"call lengths differnt: 1={len(calls1)} 2={len(calls2)}")
             return False
 
         for call1, call2 in zip(calls1, calls2):
             if call1.target != call2.target:
+                self.debugger.main_equiv(f"Targets different: 1={call1.target} 2={call2.target}")
                 return False
             if call1.target_import != call2.target_import:
+                self.debugger.main_equiv(f"Targets not imports: 1={call1.target} 2={call2.target}")
                 return False
-
+        self.debugger.main_equiv(f"Calls equivalent")
         return True
+    def compare_constraints(self,c1,c2):
+        self.solver.add(c1)
+        negated = claripy.Not(claripy.And(*c2))
+        self.solver.add(negated)
+        constraints_equivalent = not self.solver.satisfiable()
+        return constraints_equivalent
     
-    def are_equivalent(self, function_name, constraints1, constraints2, return_addr1, return_addr2, var_mapping=None):
+    def calculate_similarity(self, constraints1, constraints2, calls1, calls2):
+        # Constraint similarity
+        shared_constraints = self.compare_constraints(constraints1, constraints2)
+        constraint_similarity = 1.0 if shared_constraints else 0.0
+
+        # Call similarity
+        call_targets1 = set(call.target for call in calls1)
+        call_targets2 = set(call.target for call in calls2)
+        shared_calls = call_targets1.intersection(call_targets2)
+        call_similarity = len(shared_calls) / max(len(call_targets1), len(call_targets2), 1)
+
+        # Return address similarity
+        #shared_ret_addrs = set(ret_addrs1).intersection(set(ret_addrs2))
+        #ret_addr_similarity = len(shared_ret_addrs) / max(len(ret_addrs1), len(ret_addrs2), 1)
+
+        # Weighted average (adjust weights as needed)
+        weights = {"constraints": 0.5, "calls": 0.5}
+        similarity_score = (
+            weights["constraints"] * constraint_similarity +
+            weights["calls"] * call_similarity
+        )
+
+        return similarity_score
+    
+    def are_equivalent(self, function_name, constraints1, constraints2, return_addr1, return_addr2, calls1, calls2, var_mapping=None):
         """
         Check if two sets of constraints and their call patterns are equivalent.
         :param function_name: Name of the function being checked.
@@ -123,26 +176,36 @@ class EquivalenceAnalyzer:
         else:
             normalized1 = constraints1
             normalized2 = constraints2
+        self.debugger.main_equiv(f"C1: {normalized1}")
+        self.debugger.main_equiv(f"C2: {normalized2}")
+        
+        threshold = 0.75
+        similarity_score = self.calculate_similarity(normalized1, normalized2, calls1, calls2)
 
+        # Log similarity score
+        self.debugger.main_equiv(f"Function {function_name} - Similarity Score: {similarity_score:.2f}")
+
+        # Determine equivalence based on threshold
+        equivalent = similarity_score >= threshold
+        
         # Check equivalence of memory constraints
+        '''
         self.solver.add(normalized1)
         negated = claripy.Not(claripy.And(*normalized2))
         self.solver.add(negated)
         constraints_equivalent = not self.solver.satisfiable()
+        self.debugger.main_equiv(f"contraints equiv:  {constraints_equivalent}")
+        
+        sorted_calls1 = sorted(calls1, key=lambda call: call.target)
+        sorted_calls2 = sorted(calls2, key=lambda call: call.target)
+        calls_equivalent = self.compare_calls(sorted_calls1, sorted_calls2)
+        
+        equivalent = constraints_equivalent and calls_equivalent
+        '''
 
         # Clear solver for next check
         self.solver = claripy.Solver()
-
-        # Fetch call data from the tracker
-        calls1 = self.tracker.get_calls(function_name, return_addr1)
-        calls2 = self.tracker.get_calls(function_name, return_addr2)
-
-        # Compare call equivalence
-        calls_equivalent = self.compare_calls(calls1, calls2)
-
-        # Determine overall equivalence
-        equivalent = constraints_equivalent and calls_equivalent
-
+        
         # Track equivalence results
         unmatched1 = f"unmatched_{self.binary1_name}"
         unmatched2 = f"unmatched_{self.binary2_name}"

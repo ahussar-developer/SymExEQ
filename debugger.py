@@ -15,7 +15,7 @@ class Debugger:
         self.dir = f"debug_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.enabled = enabled
         self.level = level.upper()
-        self.level_order = {"DEBUG": 1, "INFO": 2, "ERROR": 3, "RESULTS":4}
+        self.level_order = {"DEBUG": 1, "INFO": 2, "ERROR": 3, "RESULTS":4, "EQUIV":5}
         self.gen_log_filename = os.path.join(self.dir, "general.log")
         self.curr_bin_log_filename = curr_bin_log
         self.toFile = toFile
@@ -114,6 +114,10 @@ class Debugger:
     def main_res(self, message):
         """Log results message."""
         self.main_log("RESULTS", message)
+    
+    def main_equiv(self, message):
+        """Log results message."""
+        self.main_log("EQUIV", message)
     
     def close(self):
         """Close the log file if logging to a file."""
