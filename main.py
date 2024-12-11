@@ -27,6 +27,7 @@ def analyze_trackers(trackers, debugger):
     :param trackers: Dictionary of {dir_name: {binary_name: Tracker}}.
     :param debugger: Debugger instance for logging.
     """
+    #print(trackers)
     dir1, dir2 = trackers.keys()
     debugger.main_info(f"Starting analysis between trackers for directories: {dir1} and {dir2}")
     
@@ -181,7 +182,7 @@ def process_binary(binary_path, debugger, clear_jsons, log_suffix=None):
     try:
         # Set the timeout for the entire execute_all process
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(15 * 60)  # 15 minutes in seconds
+        signal.alarm(30 * 60)  # 30 minutes in seconds
         SE.execute_all()
         signal.alarm(0)  # Disable the alarm after successful execution
     except TimeoutException:

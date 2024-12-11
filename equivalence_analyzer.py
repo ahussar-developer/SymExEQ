@@ -30,15 +30,37 @@ class EquivalenceAnalyzer:
         *s_1104_32
         **s_515_32
         """
-        
-        # Match patterns for variable types
+        # Regex pattern to match the core name
         match = re.match(
-            r"(?:\*+)?(?:fake_ret_value|arg|size|ptr|stream|s)_\w+_(\d+)_\d+", var_name
+            r"(?:\*+)?(?P<prefix>(fake_ret_value|arg))_(?P<core>[a-zA-Z0-9]+)_\d+_\d+",
+            var_name
         )
         if match:
-            return match.group(1)  # Return the core number
+            print(f"{match.group('prefix')}_{match.group('core')}")
+            return f"{match.group('prefix')}_{match.group('core')}"  # Return the extracted prefix and core
+
+        # Fallback regex for other variable types
+        match = re.match(
+            r"(?:\*+)?(?P<core_name>(size|ptr|stream|s))_\d+_\d+",
+            var_name
+        )
+        if match:
+            print(match.group("core_name"))
+            return f"{match.group("core_name")}"  # Return the core name
+
+        
+        # Match patterns for variable types
+        print(f"Matching: {var_name}")
+        match = re.match(
+            r"(?:\*+)?(?P<core_name>(fake_ret_value|arg_\w+|size|ptr|stream|s))",
+            var_name
+        )
+        if match:
+            print(match.group("core_name"))
+            return f"{match.group("core_name")}" # Return the core name
 
         # If no match, return the variable name as-is
+        print("Failed")
         return var_name
     
     def build_variable_mapping(self, constraints1, constraints2):
@@ -55,8 +77,8 @@ class EquivalenceAnalyzer:
         core_map1 = {var: self.extract_core_name(var) for var in variables1}
         core_map2 = {var: self.extract_core_name(var) for var in variables2}
         
-        print(f'M1: {core_map1}')
-        print(f'M2: {core_map2}')
+        #print(f'M1: {core_map1}')
+        #print(f'M2: {core_map2}')
 
         # Build mapping
         mapping = {}
@@ -145,24 +167,65 @@ class EquivalenceAnalyzer:
                     count += 1
         return count
 
+    '''
     def compare_constraints(self,c1,c2):
         self.solver.add(c1)
         negated = claripy.Not(claripy.And(*c2))
         self.solver.add(negated)
         constraints_equivalent = not self.solver.satisfiable()
         return constraints_equivalent
-    
+    '''
+    def compare_constraints(self, c1, c2):
+        """
+        Compare two sets of constraints for equivalence using bi-directional implication.
+        :param c1: First set of constraints (list of claripy expressions).
+        :param c2: Second set of constraints (list of claripy expressions).
+        :return: True if constraints are equivalent, False otherwise.
+        """
+        simplified_c1 = [claripy.simplify(constraint) for constraint in c1]
+        simplified_c2 = [claripy.simplify(constraint) for constraint in c2]
+        c1 = simplified_c1
+        c2 = simplified_c2
+        # Check if c1 implies c2
+        self.solver.add(c1)
+        negated_c2 = claripy.Not(claripy.And(*c2))
+        self.solver.add(negated_c2)
+        implies1 = not self.solver.satisfiable()
+        
+        self.solver = claripy.Solver() # Clear the solver for the next check
+
+        # Check if c2 implies c1
+        self.solver.add(c2)
+        negated_c1 = claripy.Not(claripy.And(*c1))
+        self.solver.add(negated_c1)
+        implies2 = not self.solver.satisfiable()
+        
+        self.solver = claripy.Solver()  # Clear the solver after the check
+
+        # If both implications hold, the constraints are equivalent
+        constraints_equivalent = implies1 and implies2
+        
+        #if not constraints_equivalent:
+            #print(f'C1: {c1}')
+            #print(f'C2: {c2}')
+            #print(f"C1 -> C2?: {implies1}")
+            #print(f"C2 -> C1?: {implies2}")
+            #print(f"Equivalent?: {constraints_equivalent}")
+            #print('\n\n')
+        return constraints_equivalent
+
     def calculate_similarity(self, constraints1, constraints2, calls1, calls2, ret_count1, ret_count2):
         # Constraint similarity
         shared_constraints = self.compare_constraints(constraints1, constraints2)
         constraint_similarity = 1.0 if shared_constraints else 0.0
+        print(f'Constraint Sim: {constraint_similarity}')
 
         # Call similarity
         call_targets1 = set(call.target for call in calls1)
         call_targets2 = set(call.target for call in calls2)
         shared_calls = call_targets1.intersection(call_targets2)
         call_similarity = len(shared_calls) / max(len(call_targets1), len(call_targets2), 1)
-
+        print(f'Call Sim: {call_similarity}')
         
         # Return value count similarity
         if ret_count1 == ret_count2:
@@ -170,6 +233,7 @@ class EquivalenceAnalyzer:
         else:
             max_ret_val_count = max(ret_count1, ret_count2)
             ret_val_similarity = 1 - abs(ret_count1 - ret_count2) / max_ret_val_count
+        print(f'Ret Sim: {ret_val_similarity}')
 
         # Weighted average
         weights = {"constraints": 0.4, "calls": 0.5, "ret_vals": 0.1}
@@ -178,6 +242,7 @@ class EquivalenceAnalyzer:
             weights["calls"] * call_similarity +
             weights["ret_vals"] * ret_val_similarity
         )
+        print(f'Sim Score: {similarity_score}')
 
         return similarity_score
     
@@ -192,7 +257,7 @@ class EquivalenceAnalyzer:
         :param var_mapping: Optional mapping of variable names between the two sets of constraints.
         :return: True if equivalent, False otherwise.
         """
-        
+        '''
         rets_1 = self.count_fake_ret_values(constraints1)
         rets_2 = self.count_fake_ret_values(constraints1)
         normalized1 = None
@@ -207,31 +272,20 @@ class EquivalenceAnalyzer:
             normalized2 = constraints2
         self.debugger.main_equiv(f"C1: {normalized1}")
         self.debugger.main_equiv(f"C2: {normalized2}")
-        
+        '''
+        rets_1 = self.count_fake_ret_values(constraints1)
+        rets_2 = self.count_fake_ret_values(constraints1)
         # TODO: Ended here testing the new ret comparisons
-        threshold = 0.75
-        similarity_score = self.calculate_similarity(normalized1, normalized2, calls1, calls2, rets_1, rets_2)
-
+        threshold = 0.5
+        similarity_score = self.calculate_similarity(constraints1, constraints2, calls1, calls2, rets_1, rets_2)
+        
         # Log similarity score
         self.debugger.main_equiv(f"Function {function_name} - Similarity Score: {similarity_score:.2f}")
 
         # Determine equivalence based on threshold
         equivalent = similarity_score >= threshold
+        print(f"EQUIVALENT?: {equivalent}\n\n")
         
-        # Check equivalence of memory constraints
-        '''
-        self.solver.add(normalized1)
-        negated = claripy.Not(claripy.And(*normalized2))
-        self.solver.add(negated)
-        constraints_equivalent = not self.solver.satisfiable()
-        self.debugger.main_equiv(f"contraints equiv:  {constraints_equivalent}")
-        
-        sorted_calls1 = sorted(calls1, key=lambda call: call.target)
-        sorted_calls2 = sorted(calls2, key=lambda call: call.target)
-        calls_equivalent = self.compare_calls(sorted_calls1, sorted_calls2)
-        
-        equivalent = constraints_equivalent and calls_equivalent
-        '''
 
         # Clear solver for next check
         self.solver = claripy.Solver()
