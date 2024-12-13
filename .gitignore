@@ -11,3 +11,6 @@ clear_jsons.sh
 debug_*
 json/
 test.py
+extract_logs.py
+results.txt
+run_all.sh

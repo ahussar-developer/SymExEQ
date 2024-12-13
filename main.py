@@ -99,7 +99,10 @@ def analyze_trackers(trackers, debugger):
                         #debugger.main_error(f"NOT EQ: {function_name} with return addresses {hex(ret_addr1)} and {hex(ret_addr2)} are NOT equivalent.")
                         #debugger.main_error(f'C1: {constraints1}')
                         #debugger.main_error(f'C2: {constraints2}')
-    solver.print_equivalence_results()
+    #solver.print_equivalence_results()
+    eq = solver.determine_final_equivalnce()
+    print(f'Program EQ?: {eq}')
+    solver.summarize_equivalence_results(detailed=True)
     debugger.main_info("Tracker analysis complete!")
 
 def clear_directory(json_dir, debugger):
@@ -118,6 +121,7 @@ def clear_directory(json_dir, debugger):
                 debugger.main_error(f"Failed to delete {file_path}: {e}")
 
 def process_binary(binary_path, debugger, clear_jsons, log_suffix=None):
+    print(f'BINARY: {binary_path}')
     json_dir = "json/"
     if clear_jsons:
         clear_directory(json_dir=json_dir, debugger=debugger)
@@ -182,7 +186,7 @@ def process_binary(binary_path, debugger, clear_jsons, log_suffix=None):
     try:
         # Set the timeout for the entire execute_all process
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(30 * 60)  # 30 minutes in seconds
+        signal.alarm(60 * 60)  # 60 minutes in seconds
         SE.execute_all()
         signal.alarm(0)  # Disable the alarm after successful execution
     except TimeoutException:
@@ -208,6 +212,12 @@ def process_two_directories(dir1, dir2, debugger, binary_name=None):
     :param debugger: Debugger instance for logging.
     :param binary_name: Optional specific binary name to process.
     """
+    
+    if binary_name:
+        debugger.set_general_log(binary_name)
+        debugger.main_info(f"Comparing directories: {dir1} and {dir2}")
+        debugger.main_info(f"Comparing binary: {binary_name}")
+    
     trackers = {dir1: {}, dir2: {}}
     binaries1 = {os.path.basename(file): os.path.join(dir1, file) for file in os.listdir(dir1) if os.path.isfile(os.path.join(dir1, file))}
     binaries2 = {os.path.basename(file): os.path.join(dir2, file) for file in os.listdir(dir2) if os.path.isfile(os.path.join(dir2, file))}
@@ -242,6 +252,7 @@ def process_two_directories(dir1, dir2, debugger, binary_name=None):
             return
 
         for program_name in common_binaries:
+            debugger.set_general_log(program_name)
             debugger.main_info(f"Processing matching binary: {program_name}")
             try:
                 debugger.main_info(f"Running SEE on {suffix1} version of {program_name}")
@@ -266,9 +277,11 @@ def process_two_directories(dir1, dir2, debugger, binary_name=None):
 
 def process_directory(directory, debugger):
     """Process all binaries in a single directory."""
+    
     trackers = []
     suffix = os.path.basename(os.path.normpath(directory))
     for filename in os.listdir(directory):
+        debugger.set_general_log(filename)
         file_path = os.path.join(directory, filename)
         if os.path.isfile(file_path):
             debugger.main_info(f"Processing binary: {file_path}")
@@ -281,8 +294,8 @@ def process_directory(directory, debugger):
 
 
 def main():
-    debugger = Debugger(enabled=True, level="RESULTS", toFile=True)
-    #debugger = Debugger(enabled=True, level="DEBUG", toFile=False)
+    debugger = Debugger(enabled=True, level="DEBUG", toFile=True)
+    #debugger = Debugger(enabled=True, level="RESULTS", toFile=False)
     
     clear_directory('json/', debugger)
 
@@ -300,18 +313,19 @@ def main():
         # Two paths provided, both should be directories
         if os.path.isdir(path1) and os.path.isdir(path2):
             if binary_name:
-                debugger.main_info(f"Comparing binary {binary_name} from directories: {path1} and {path2}")
+                #debugger.main_info(f"Comparing binary {binary_name} from directories: {path1} and {path2}")
                 process_two_directories(path1, path2, debugger, binary_name)
             else:
-                debugger.main_info(f"Comparing directories: {path1} and {path2}")
+                #debugger.main_info(f"Comparing directories: {path1} and {path2}")
                 process_two_directories(path1, path2, debugger, None)
         else:
-            debugger.main_error("Both paths must be valid directories for comparison.")
+            print("Both paths must be valid directories for comparison.")
     elif os.path.isdir(path1):
-        debugger.main_info(f"Directory detected: {path1}")
         process_directory(path1, debugger)
     elif os.path.isfile(path1):
         # If it's a file, process that binary
+        program_name = os.path.basename(path1)
+        debugger.set_general_log(program_name)
         debugger.main_info(f"File detected: {path1}")
         try:
             suffix = os.path.basename(os.path.dirname(path1))
@@ -321,7 +335,7 @@ def main():
             print(f'fail: {e}')
             debugger.main_error(f"Failed to process binary '{path1}' with error: {e}")
     else:
-        debugger.error(f"{path1} is neither a valid file nor a directory and {path2} wasnt provided.")
+        print(f"{path1} is neither a valid file nor a directory and {path2} wasnt provided.")
         return
 
     debugger.main_close()

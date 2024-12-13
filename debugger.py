@@ -6,7 +6,7 @@ import logging
 import os
 
 class Debugger:
-    def __init__(self, enabled=True, level="INFO", toFile=False, curr_bin_log=None):
+    def __init__(self, enabled=True, level="INFO", toFile=False, curr_bin_log=None, curr_gen_log=None):
         """
         Initialize the Debugger.
         :param enabled: Whether debugging is enabled or disabled.
@@ -16,20 +16,20 @@ class Debugger:
         self.enabled = enabled
         self.level = level.upper()
         self.level_order = {"DEBUG": 1, "INFO": 2, "ERROR": 3, "RESULTS":4, "EQUIV":5}
-        self.gen_log_filename = os.path.join(self.dir, "general.log")
+        
+        self.curr_gen_log_filename = curr_gen_log
+        self.curr_gen_log = None
+        
         self.curr_bin_log_filename = curr_bin_log
-        self.toFile = toFile
         self.curr_bin_log = None
-        self.gen_log = None
+
+        self.toFile = toFile
+        
+        
         
         if self.toFile:
             self.dir_setup()
-            # Open the log file for writing
-            self.gen_log = open(self.gen_log_filename, "a")
-        else:
-            self.gen_log = None
 
-        print(self.gen_log)
     
     def is_enabled(self):
         if self.enabled:
@@ -39,6 +39,11 @@ class Debugger:
     def set_binary_log(self, bin_log):
         self.curr_bin_log_filename = os.path.join(self.dir, bin_log)
         self.curr_bin_log = open(self.curr_bin_log_filename, "a")
+    
+    def set_general_log(self, gen_log):
+        name = gen_log + "_general.log"
+        self.curr_gen_log_filename = os.path.join(self.dir, name)
+        self.curr_gen_log = open(self.curr_gen_log_filename, "a")
     
     def dir_setup(self):
         if not os.path.exists(self.dir):
@@ -80,9 +85,9 @@ class Debugger:
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             #print(f"[{timestamp}] [{level.upper()}] {message}")
             log_message = f"[{level.upper()}] {message}"
-            if self.toFile and self.gen_log:
+            if self.toFile and self.curr_gen_log:
                 # Write the log message to the file
-                self.gen_log.write(log_message + "\n")
+                self.curr_gen_log.write(log_message + "\n")
             else:
                 # Print the log message to stdout
                 print(log_message)
@@ -127,9 +132,9 @@ class Debugger:
     
     def main_close(self):
         """Close the log file if logging to a file."""
-        if self.gen_log:
-            self.gen_log.close()
-            self.gen_log = None    
+        if self.curr_gen_log:
+            self.curr_gen_log.close()
+            self.curr_gen_log = None    
 
     def enable_instruction_logging(self, state):
         """Set up an instruction hook to log executed instructions."""

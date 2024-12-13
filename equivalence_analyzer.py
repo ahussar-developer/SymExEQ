@@ -182,6 +182,7 @@ class EquivalenceAnalyzer:
         :param c2: Second set of constraints (list of claripy expressions).
         :return: True if constraints are equivalent, False otherwise.
         """
+        self.solver = claripy.Solver() 
         simplified_c1 = [claripy.simplify(constraint) for constraint in c1]
         simplified_c2 = [claripy.simplify(constraint) for constraint in c2]
         c1 = simplified_c1
@@ -205,27 +206,27 @@ class EquivalenceAnalyzer:
         # If both implications hold, the constraints are equivalent
         constraints_equivalent = implies1 and implies2
         
-        #if not constraints_equivalent:
-            #print(f'C1: {c1}')
-            #print(f'C2: {c2}')
-            #print(f"C1 -> C2?: {implies1}")
-            #print(f"C2 -> C1?: {implies2}")
-            #print(f"Equivalent?: {constraints_equivalent}")
-            #print('\n\n')
+
+        self.debugger.main_res(f'C1: {c1}')
+        self.debugger.main_res(f'C2: {c2}')
+        self.debugger.main_res(f"C1 -> C2?: {implies1}")
+        self.debugger.main_res(f"C2 -> C1?: {implies2}")
+        self.debugger.main_res(f"Equivalent?: {constraints_equivalent}")
+        
         return constraints_equivalent
 
     def calculate_similarity(self, constraints1, constraints2, calls1, calls2, ret_count1, ret_count2):
         # Constraint similarity
         shared_constraints = self.compare_constraints(constraints1, constraints2)
         constraint_similarity = 1.0 if shared_constraints else 0.0
-        print(f'Constraint Sim: {constraint_similarity}')
+        self.debugger.main_res(f'Constraint Sim: {constraint_similarity}')
 
         # Call similarity
         call_targets1 = set(call.target for call in calls1)
         call_targets2 = set(call.target for call in calls2)
         shared_calls = call_targets1.intersection(call_targets2)
         call_similarity = len(shared_calls) / max(len(call_targets1), len(call_targets2), 1)
-        print(f'Call Sim: {call_similarity}')
+        self.debugger.main_res(f'Call Sim: {call_similarity}')
         
         # Return value count similarity
         if ret_count1 == ret_count2:
@@ -233,7 +234,7 @@ class EquivalenceAnalyzer:
         else:
             max_ret_val_count = max(ret_count1, ret_count2)
             ret_val_similarity = 1 - abs(ret_count1 - ret_count2) / max_ret_val_count
-        print(f'Ret Sim: {ret_val_similarity}')
+        self.debugger.main_res(f'Ret Sim: {ret_val_similarity}')
 
         # Weighted average
         weights = {"constraints": 0.4, "calls": 0.5, "ret_vals": 0.1}
@@ -242,7 +243,7 @@ class EquivalenceAnalyzer:
             weights["calls"] * call_similarity +
             weights["ret_vals"] * ret_val_similarity
         )
-        print(f'Sim Score: {similarity_score}')
+        #print(f'Sim Score: {similarity_score}')
 
         return similarity_score
     
@@ -284,7 +285,7 @@ class EquivalenceAnalyzer:
 
         # Determine equivalence based on threshold
         equivalent = similarity_score >= threshold
-        print(f"EQUIVALENT?: {equivalent}\n\n")
+        #print(f"EQUIVALENT?: {equivalent}\n\n")
         
 
         # Clear solver for next check
@@ -314,6 +315,26 @@ class EquivalenceAnalyzer:
         )
 
         return equivalent
+    
+    def determine_final_equivalnce(self):
+        total_functions = len(self.equivalence_results)
+        equivalent_count = 0
+        non_equivalent_count = 0
+
+        for function_name, results in self.equivalence_results.items():
+            if results["all_matched"]:
+                equivalent_count += 1
+            else:
+                non_equivalent_count += 1
+        function_threshold = 0.6
+        sim_score = equivalent_count / total_functions
+        print(f'Program Similarity: {sim_score}')
+        self.debugger.main_res(f'Program Similarity: {sim_score}')
+        equivalent = sim_score >= function_threshold
+        return equivalent
+        
+
+
 
     def print_equivalence_results(self):
         """
@@ -322,6 +343,45 @@ class EquivalenceAnalyzer:
         self.debugger.main_res("")
         results_str = json.dumps(self.equivalence_results, indent=4, default=str)
         self.debugger.main_res(results_str)
+
+    def summarize_equivalence_results(self, detailed=False):
+        """
+        Summarize the equivalence results.
+        Counts the number of equivalent and non-equivalent functions.
+        :return: Dictionary with counts of equivalent and non-equivalent functions.
+        """
+        total_functions = len(self.equivalence_results)
+        equivalent_count = 0
+        non_equivalent_count = 0
+
+        for function_name, results in self.equivalence_results.items():
+            if results["all_matched"]:
+                equivalent_count += 1
+            else:
+                non_equivalent_count += 1
+
+        summary = {
+            "total_functions": total_functions,
+            "equivalent_functions": equivalent_count,
+            "non_equivalent_functions": non_equivalent_count,
+        }
+        print(f"Equivalence Results Summary: {summary}")
+
+        # Print detailed summary
+        self.debugger.main_res(f"Equivalence Results Summary: {summary}")
+        if detailed:
+            for function_name, results in self.equivalence_results.items():
+                if results["all_matched"]:
+                    self.debugger.main_res(f"Function {function_name} is equivalent for all ret addresses.")
+                    self.debugger.main_res(results["all_matched"])
+                else:
+                    unmatched1 = results[f"unmatched_{self.binary1_name}"]
+                    unmatched2 = results[f"unmatched_{self.binary2_name}"]
+                    self.debugger.main_res(f"Function {function_name} is NOT equivalent.")
+                    self.debugger.main_res(f"  Unmatched Return Addresses in {self.binary1_name}: {unmatched1}")
+                    self.debugger.main_res(f"  Unmatched Return Addresses in {self.binary2_name}: {unmatched2}")
+        return summary
+
 
     def compare_functions(self, func1_constraints, func2_constraints, var_mapping=None):
         """
