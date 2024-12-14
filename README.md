@@ -80,6 +80,10 @@ If you want to compare a specific binary (e.g., `true`), provide its name as an 
 ```
 
 ---
+## Coreutils Testing
+We have provided a tar of the coreutils version we tested on.
+See `test/compile-coreutils.txt` for isntructions on how to compile 32-bit bianries using both `gcc` and `clang`.
+
 
 ## How It Works
 
