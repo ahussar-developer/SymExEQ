@@ -46,7 +46,7 @@ class EquivalenceAnalyzer:
         )
         if match:
             print(match.group("core_name"))
-            return f"{match.group("core_name")}"  # Return the core name
+            return f"{match.group('core_name')}"  # Return the core name
 
         
         # Match patterns for variable types
@@ -57,7 +57,7 @@ class EquivalenceAnalyzer:
         )
         if match:
             print(match.group("core_name"))
-            return f"{match.group("core_name")}" # Return the core name
+            return f"{match.group('core_name')}"  # Return the core name
 
         # If no match, return the variable name as-is
         print("Failed")

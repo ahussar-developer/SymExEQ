@@ -1,0 +1,4 @@
+angr==9.2.130
+capstone==5.0.3
+claripy==9.2.130
+r2pipe==1.9.4

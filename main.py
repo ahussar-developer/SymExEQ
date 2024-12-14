@@ -294,7 +294,7 @@ def process_directory(directory, debugger):
 
 
 def main():
-    debugger = Debugger(enabled=True, level="DEBUG", toFile=True)
+    debugger = Debugger(enabled=True, level="RESULTS", toFile=True)
     #debugger = Debugger(enabled=True, level="RESULTS", toFile=False)
     
     clear_directory('json/', debugger)
