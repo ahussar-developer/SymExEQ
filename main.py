@@ -214,7 +214,8 @@ def process_two_directories(dir1, dir2, debugger, binary_name=None):
     """
     
     if binary_name:
-        debugger.set_general_log(binary_name)
+        if debugger.toFile:
+            debugger.set_general_log(binary_name)
         debugger.main_info(f"Comparing directories: {dir1} and {dir2}")
         debugger.main_info(f"Comparing binary: {binary_name}")
     
@@ -294,20 +295,32 @@ def process_directory(directory, debugger):
 
 
 def main():
-    debugger = Debugger(enabled=True, level="RESULTS", toFile=True)
-    #debugger = Debugger(enabled=True, level="RESULTS", toFile=False)
-    
-    clear_directory('json/', debugger)
 
+    # Set up argument parser
     parser = argparse.ArgumentParser(description="Process one or two directories or a single binary.")
+    
+    # Add arguments for debugger settings
+    parser.add_argument("--debug-level", type=str, choices=["RESULTS", "DEBUG", "INFO", "ERROR"], default="RESULTS", 
+                        help="Set the debugger logging level (default: RESULTS).")
+    parser.add_argument("--log-to-file", action="store_true", 
+                        help="Write debugger output to a log file instead of stdout.")
+    
+    # Add arguments for paths and binary
     parser.add_argument("path1", help="Path to a binary, directory, or the first directory for comparison.")
     parser.add_argument("path2", nargs="?", help="Optional: Path to the second directory for comparison.")
-    parser.add_argument("binary_name", nargs='?', default=None, help="Optional specific binary to process")
+    parser.add_argument("binary_name", nargs='?', default=None, help="Optional specific binary to process.")
 
+    # Parse arguments
     args = parser.parse_args()
     path1 = args.path1
     path2 = args.path2
     binary_name = args.binary_name
+
+    # Initialize debugger based on user input
+    debugger = Debugger(enabled=True, level=args.debug_level, toFile=args.log_to_file)
+
+    # Clear JSON directory
+    clear_directory('json/', debugger)
 
     if path2:
         # Two paths provided, both should be directories

@@ -14,3 +14,12 @@ test.py
 extract_logs.py
 results.txt
 run_all.sh
+extracted_results.txt
+get_noneq.py
+presentation_backup.pdf
+read_logs.py
+TRUE_LOGS/
+photos/
+create_table.py
+run_demo.sh
+sorted_results_table.csv
